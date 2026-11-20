@@ -1,0 +1,17 @@
+{
+	"extends": "./tsconfig.node.json",
+	"compilerOptions": {
+		"noEmit": false,
+		"rootDir": "src",
+		"outDir": "dist",
+		"rewriteRelativeImportExtensions": true
+	},
+	"include": [
+		"src/adapters/**/*",
+		"src/normalize/**/*",
+		"src/store/**/*",
+		"src/metrics/**/*",
+		"src/server/**/*",
+		"src/shared/**/*"
+	]
+}
