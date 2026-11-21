@@ -49,7 +49,11 @@ import {
 	upsertTokens,
 	upsertWindow,
 } from "../store/repositories.ts";
-import type { StoredPool, StoredScannedHour, StoredWindow } from "../store/types.ts";
+import type {
+	StoredEvmPool as StoredPool,
+	StoredEvmScannedHour as StoredScannedHour,
+	StoredNativeWindow as StoredWindow,
+} from "../store/types.ts";
 import { isPricingAnchor, loadCatalog } from "./catalog-cache.ts";
 import { poolFeeStatus } from "./fee-quality.ts";
 import { hourContinuation, mergeHourContinuation } from "./hour-continuation.ts";

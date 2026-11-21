@@ -1,6 +1,7 @@
 import { findVenue, VENUE_STATUS_ENABLED, type VenueStatus } from "../shared/catalog.ts";
+import type { SourceCapabilities } from "../shared/source-contracts.ts";
 import type { IngestPath, VenueSourcePolicy } from "../shared/venue-sources.ts";
-import { venueSourcePolicy } from "../shared/venue-sources.ts";
+import { venueSourceCapabilities, venueSourcePolicy } from "../shared/venue-sources.ts";
 
 export type VenueAdapterKind = "ready" | "placeholder";
 
@@ -10,6 +11,7 @@ export type VenueAdapter = {
 	status: VenueStatus;
 	ingest: IngestPath;
 	kind: VenueAdapterKind;
+	capabilities: SourceCapabilities;
 	policy: VenueSourcePolicy;
 	assertCanRefresh(): void;
 };
@@ -52,7 +54,7 @@ function blockedRefreshError(label: string): Error {
 
 export function createReadyAdapter(chain: string, protocol: string): VenueAdapter {
 	const venue = requireVenuePolicy(chain, protocol, "已启用场所缺少目录或数据路径政策：");
-	if (venue.status !== VENUE_STATUS_ENABLED) {
+	if (venue.status !== VENUE_STATUS_ENABLED || venue.policy.ingest === "not_started") {
 		throw new Error(`未启用场所不得注册为 ready 适配器：${chain}/${protocol}`);
 	}
 	return {
@@ -62,8 +64,9 @@ export function createReadyAdapter(chain: string, protocol: string): VenueAdapte
 		ingest: venue.policy.ingest,
 		kind: "ready",
 		policy: venue.policy,
+		capabilities: venueSourceCapabilities(chain, protocol),
 		assertCanRefresh() {
-			if (venue.status !== VENUE_STATUS_ENABLED) {
+			if (venue.status !== VENUE_STATUS_ENABLED || venue.policy.ingest === "not_started") {
 				throw blockedRefreshError(venue.label);
 			}
 		},
@@ -83,6 +86,7 @@ export function createPlaceholderAdapter(chain: string, protocol: string): Venue
 		ingest: venue.policy.ingest,
 		kind: "placeholder",
 		policy: venue.policy,
+		capabilities: venueSourceCapabilities(chain, protocol),
 		assertCanRefresh() {
 			throw blockedRefreshError(venue.label);
 		},

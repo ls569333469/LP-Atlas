@@ -3,7 +3,7 @@ import type { Address } from "viem";
 import { getAddress, type PublicClient } from "viem";
 import type { PoolQuote } from "../adapters/pool-price-reader.ts";
 import { readV4Slot0s } from "../adapters/venues/elysium/uniswap-v4.ts";
-import type { StoredPool } from "../store/types.ts";
+import type { StoredEvmPool as StoredPool } from "../store/types.ts";
 import { buildUsdPrices, type PricedPool, type UsdPricePolicy } from "./prices.ts";
 
 export function buildPriceBridgeIndex(

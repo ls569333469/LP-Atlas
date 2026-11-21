@@ -72,3 +72,9 @@
 | 文件 | 内容 |
 | --- | --- |
 | [01-lp-practical-handbook.md](06-playbook/01-lp-practical-handbook.md) | 集中流动性实战手册：选池、铺法、策略库与管仓纪律；1%–2% 只是其中一条，不是全部 |
+
+## Solana基础更新
+
+- [方案17 · 接入边界与S0审核](05-operations/17-solana-venue-architecture-2026-11-20.md)
+- [方案18 · 基础交接包](05-operations/18-solana-codex-foundation-2026-11-20.md)
+- [方案18 · S0/S1实际实施、测试与回滚边界](05-operations/18-solana-s0-s1-implementation-2026-11-21.md)（未部署、未扫描）

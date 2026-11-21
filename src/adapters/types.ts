@@ -78,3 +78,6 @@ export type SwapWindowAcc = {
 	firstBlock: bigint | null;
 	lastBlock: bigint | null;
 };
+
+/** Source-level cumulative and event capabilities remain distinct from EVM decoded events. */
+export type { SourceCapabilities, SourceObservation } from "../shared/source-contracts.ts";

@@ -11,7 +11,11 @@ import {
 	listTokensForPools,
 	listWindowsInRange,
 } from "../src/store/repositories.ts";
-import type { StoredPool, StoredWindow } from "../src/store/types.ts";
+import type {
+	StoredEvmPool as StoredPool,
+	StoredNativeWindow as StoredWindow,
+} from "../src/store/types.ts";
+import { isEvmPool, isEvmScannedHour, isEvmToken, isNativeWindow } from "../src/store/types.ts";
 import { type Dataset, normalizeHour, qualifies } from "./engine.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -94,16 +98,18 @@ try {
 	revision = last.id;
 	rpcKind = last.rpcSourceKind;
 	rpcLabel = last.rpcSourceLabel;
-	const all = await listWindowsInRange(tx, LOCAL_START, researchEnd + H);
-	const coverage = await listScannedHours(tx, {
-		startUnix: LOCAL_START,
-		endUnixExclusive: researchEnd + H,
-	});
+	const all = (await listWindowsInRange(tx, LOCAL_START, researchEnd + H)).filter(isNativeWindow);
+	const coverage = (
+		await listScannedHours(tx, {
+			startUnix: LOCAL_START,
+			endUnixExclusive: researchEnd + H,
+		})
+	).filter(isEvmScannedHour);
 	const hoursInWindow = all.filter(
 		(h) => h.windowStart >= LOCAL_START && h.windowStart < researchEnd,
 	);
 	const catalogIds = [...new Set(all.map((h) => h.poolId))];
-	const catalog = await listPoolsByIds(tx, catalogIds);
+	const catalog = (await listPoolsByIds(tx, catalogIds)).filter(isEvmPool);
 	const catalogMap = new Map(catalog.map((p) => [p.poolId, p]));
 	const normalized = hoursInWindow.flatMap((h) => {
 		const pool = catalogMap.get(h.poolId);
@@ -112,7 +118,7 @@ try {
 	const candidateIds = [
 		...new Set(normalized.filter((h) => h.complete && qualifies(h)).map((h) => h.poolId)),
 	];
-	const pools = await listPoolsByIds(tx, candidateIds);
+	const pools = (await listPoolsByIds(tx, candidateIds)).filter(isEvmPool);
 	const poolMap = new Map(pools.map((p) => [p.poolId, p]));
 	const bridgePools = catalog.filter(
 		(p) =>
@@ -129,7 +135,7 @@ try {
 		start: LOCAL_START,
 		end: researchEnd,
 		pools,
-		tokens: await listTokensForPools(tx, keepIds),
+		tokens: (await listTokensForPools(tx, keepIds)).filter(isEvmToken),
 		hours: all
 			.filter((h) => keepIds.includes(h.poolId))
 			.flatMap((h) => {
@@ -279,7 +285,9 @@ async function writeSnapshot(
 			state_block_number TEXT, price_boundary_version INTEGER, usd_bridge_version INTEGER,
 			PRIMARY KEY (chain_id, protocol, window_start)
 		)`);
-		const tokens = await listTokensForPools(tx, [...new Set(input.all.map((h) => h.poolId))]);
+		const tokens = (
+			await listTokensForPools(tx, [...new Set(input.all.map((h) => h.poolId))])
+		).filter(isEvmToken);
 		const insert = async (sql: string, args: InValue[]) => snap.execute({ sql, args });
 		for (const [k, v] of Object.entries({
 			frozen_at: new Date().toISOString(),

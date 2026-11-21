@@ -8,7 +8,7 @@ import {
 } from "../shared/constants.ts";
 import type { AppDatabase } from "../store/db.ts";
 import { listPoolAdditions } from "../store/repositories.ts";
-import type { StoredPool } from "../store/types.ts";
+import type { StoredEvmPool as StoredPool } from "../store/types.ts";
 
 type Catalog = {
 	lastRowId: number;

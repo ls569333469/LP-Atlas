@@ -9,7 +9,11 @@ import {
 	toV4PoolState,
 } from "../adapters/venues/elysium/uniswap-v4.ts";
 import { feeDataUsable } from "../shared/fee-quality.ts";
-import type { StoredPool, StoredScannedHour, StoredWindow } from "../store/types.ts";
+import type {
+	StoredEvmPool as StoredPool,
+	StoredEvmScannedHour as StoredScannedHour,
+	StoredNativeWindow as StoredWindow,
+} from "../store/types.ts";
 import { buildPriceBridgeIndex, supplementUsdPrices } from "./price-bridges.ts";
 import { buildUsdPrices, sumUsd, type UsdPricePolicy, valueRawUsd } from "./prices.ts";
 

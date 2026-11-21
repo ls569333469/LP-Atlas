@@ -58,7 +58,14 @@ import {
 	listTokensForPools,
 	listWindowsInRange,
 } from "../store/repositories.ts";
-import type { StoredPool, StoredRefreshRun, StoredToken, StoredWindow } from "../store/types.ts";
+import type {
+	StoredToken as AnyStoredToken,
+	StoredEvmPool as StoredPool,
+	StoredRefreshRun,
+	StoredEvmToken as StoredToken,
+	StoredWindow,
+} from "../store/types.ts";
+import { isEvmPool, isEvmToken } from "../store/types.ts";
 import { poolFeeStatus } from "./fee-quality.ts";
 import { evaluatePoolRisks } from "./pool-risks.ts";
 import { rawPriceToken1PerToken0 } from "./prices.ts";
@@ -353,9 +360,9 @@ async function readBoardSnapshot(
 				.map((hour) => hour.poolId),
 		),
 	];
-	const pools = (await listPoolsByIds(input.db, candidateIds)).filter(
-		(pool) => chainByEvmId(pool.chainId)?.id === input.readChain,
-	);
+	const pools = (await listPoolsByIds(input.db, candidateIds))
+		.filter(isEvmPool)
+		.filter((pool) => chainByEvmId(pool.chainId)?.id === input.readChain);
 	const tokens = tokenMap(await listTokensForPools(input.db, candidateIds));
 	const rows: BoardRow[] = [];
 	let rowCountBeforeFilter = 0;
@@ -564,7 +571,8 @@ function toRow(input: {
 		reason: FEE_DATA_REASONS[feeStatus],
 	});
 	return {
-		poolId: input.pool.poolId.slice(input.pool.poolId.lastIndexOf(":") + 1),
+		poolId:
+			input.pool.nativePoolId ?? input.pool.poolId.slice(input.pool.poolId.lastIndexOf(":") + 1),
 		chainId: input.pool.chainId,
 		chain: chain?.id ?? String(input.pool.chainId),
 		protocol: input.pool.protocol,
@@ -637,8 +645,8 @@ function decimalOrNull(value: string | null): Decimal | null {
 	return parsed.isFinite() ? parsed : null;
 }
 
-function tokenMap(rows: StoredToken[]): Map<string, StoredToken> {
-	return new Map(rows.map((row) => [tokenKey(row.chainId, row.address), row]));
+function tokenMap(rows: AnyStoredToken[]): Map<string, StoredToken> {
+	return new Map(rows.filter(isEvmToken).map((row) => [tokenKey(row.chainId, row.address), row]));
 }
 
 function parseList(value: string | null): string[] {

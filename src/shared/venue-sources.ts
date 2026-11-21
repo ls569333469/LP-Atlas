@@ -13,6 +13,7 @@ import {
 	UNISWAP_V4_ETHEREUM,
 	UNISWAP_V4_ROBINHOOD,
 } from "./deployments.ts";
+import type { SourceCapabilities } from "./source-contracts.ts";
 import type { WindowId } from "./types.ts";
 
 export type IngestPath = "official_index" | "self_built" | "not_started";
@@ -311,7 +312,7 @@ const POLICIES: readonly VenueSourcePolicy[] = [
 		contracts: {},
 		env: {},
 		officialSubgraphId: null,
-		notes: "轮到 Solana 再写适配器。窗口须对齐已定五个窗口，不得冒充。",
+		notes: "轮到 Solana 再写适配器。窗口须对齐已定六个窗口，不得冒充。",
 	},
 	{
 		chain: "solana",
@@ -322,7 +323,7 @@ const POLICIES: readonly VenueSourcePolicy[] = [
 		contracts: {},
 		env: {},
 		officialSubgraphId: null,
-		notes: "轮到 Solana 再写适配器。窗口须对齐已定五个窗口，不得冒充。",
+		notes: "轮到 Solana 再写适配器。窗口须对齐已定六个窗口，不得冒充。",
 	},
 	{
 		chain: "solana",
@@ -358,3 +359,30 @@ export function assertVenueSourceCatalogCoverage(): void {
 }
 
 assertVenueSourceCatalogCoverage();
+
+/** Reviewed capability boundaries; not all official sources are subgraphs. */
+export function venueSourceCapabilities(chain: string, protocol: string): SourceCapabilities {
+	const policy = venueSourcePolicy(chain, protocol);
+	if (!policy) throw new Error("Missing source policy");
+	if (policy.ingest === "self_built")
+		return {
+			kind: "event_scan",
+			coverageScope: "venue",
+			rawAmounts: true,
+			historicalState: "required",
+		};
+	if (policy.ingest === "official_index")
+		return { kind: "official_index", nativeWindows: policy.officialWindows };
+	return {
+		kind: "not_started",
+		candidate:
+			chain === "solana" && protocol === "meteora_dlmm"
+				? "official_cumulative"
+				: chain === "solana" && protocol === "raydium_clmm"
+					? "events_and_state"
+					: "unreviewed",
+		coverage: "unverified",
+		ordinaryLpFees: "unverified",
+		historicalState: "unverified",
+	};
+}
