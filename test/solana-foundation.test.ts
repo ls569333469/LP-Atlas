@@ -30,8 +30,8 @@ import type { StoredOfficialWindow, StoredSolanaPool } from "../src/store/types.
 import { removeTempDirectories } from "./helpers/temp-directories.ts";
 
 const dirs: string[] = [];
-afterEach(() => {
-	removeTempDirectories(dirs);
+afterEach(async () => {
+	await removeTempDirectories(dirs);
 });
 const dir = () => {
 	const value = fs.mkdtempSync(path.join(os.tmpdir(), "lp-solana-"));

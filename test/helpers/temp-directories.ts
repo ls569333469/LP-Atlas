@@ -1,10 +1,21 @@
 import fs from "node:fs";
+import { setImmediate } from "node:timers/promises";
 
-/** Node owns the bounded retries; never turn exhausted cleanup into a passing test. */
-export function removeTempDirectories(directories: string[]): void {
-	const failed: string[] = [];
+/** Closed libsql clients can leave unreachable native statements until GC finalizes them. */
+export async function removeTempDirectories(directories: string[]): Promise<void> {
+	if (!directories.length) return;
+	const collect = globalThis.gc;
+	if (typeof collect !== "function") {
+		throw new Error("Temporary database cleanup requires Vitest forks with --expose-gc");
+	}
+	// Exactly two collection/finalizer turns, not an unbounded retry or a substitute for close().
+	for (let turn = 0; turn < 2; turn++) {
+		collect();
+		await setImmediate();
+	}
 	const errors: Error[] = [];
-	for (const directory of directories) {
+	// Consume this batch once: a failed hook must not contaminate later unrelated tests.
+	for (const directory of directories.splice(0)) {
 		try {
 			fs.rmSync(directory, {
 				recursive: true,
@@ -13,11 +24,8 @@ export function removeTempDirectories(directories: string[]): void {
 				retryDelay: 100,
 			});
 		} catch (cause) {
-			failed.push(directory);
 			errors.push(new Error(`Failed to remove temporary directory: ${directory}`, { cause }));
 		}
 	}
-	// Retain failed paths for another cleanup attempt, but still fail this hook.
-	directories.splice(0, directories.length, ...failed);
 	if (errors.length) throw new AggregateError(errors, "Temporary directory cleanup failed");
 }

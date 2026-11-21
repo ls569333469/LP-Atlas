@@ -27,9 +27,9 @@ function temp() {
 	dirs.push(dir);
 	return dir;
 }
-afterEach(() => {
+afterEach(async () => {
 	vi.restoreAllMocks();
-	removeTempDirectories(dirs);
+	await removeTempDirectories(dirs);
 });
 function migrationDir(before14 = false) {
 	const dir = temp();

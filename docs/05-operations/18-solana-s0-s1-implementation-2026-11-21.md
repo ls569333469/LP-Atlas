@@ -78,3 +78,36 @@ GitHub基线缺17/18，现已从用户本机现行MD导入。只读比对确认0
 Node安装类型声明确认：recursive:true才启用maxRetries，默认0；EPERM/EBUSY等使用线性退避。测试验证的是有限参数委托、模拟最终失败传播与Linux实际目录清理，**没有独立复现Windows原生句柄释放、Node内部每次重试时序或证明Windows问题已消失**。Codex的250通过/8清理失败是修复前历史报告，不是本轮复现。仍需Codex保留本机未提交修改后同步新commit，在Windows复跑定向、全量、check/build；遇CRLF差异先核实际格式，不全仓转换或忽略失败。
 
 本轮不改已应用迁移，不读/迁移生产或运行库，不做生产副本预演；所有DB测试仅临时库/fixture及已有mock。没有启用Solana/S2、新报价源或真实扫描，没有部署；16/BSC/DAMM/Orca/钱包、五分钟频率/小时账本/六窗/准入规则不变。S2费用归属、覆盖/截止、历史字段和报价政策等阻塞继续保留。
+
+
+## 第二次Windows修复：prepared-statement原生句柄（2026-11-21，Asia/Shanghai）
+
+### 纠正上一轮状态
+
+4362a9d虽在助手Linux通过，但Windows真实结果为定向10通过/12失败、全量255通过/12失败；所有12条错误均来自清理hook，不能把Linux通过当Windows验收。本轮不运行任何Linux测试、类型检查、Biome或构建；以下Windows诊断也不冒称新提交全量验收。
+
+### 根因证据（Windows 23:12–23:13）
+
+环境：本机4362a9d，Node v24.11.1，@libsql/client 0.18.0 / libsql 0.5.29，未改依赖。临时样本与日志位于本机 `node_modules/.cache/lp-atlas-win-libsql-diagnosis-4362a9d/`：`diagnosis.json`、`bounded-control.json`。所有DB均为本轮新建fixture，不访问.env或运行库。
+
+- 独立Node进程（不运行Vitest）：普通文件、raw Database仅open/exec后close，立即删除成功；保留prepare SELECT的Statement时close后EPERM，等待50ms或保留Statement时GC仍失败，丢弃Statement并GC后成功。
+- client只create也复现：安装的sqlite3.js:58–60会执行健康检查SELECT；executeStmt:527–552创建prepared statement并物化普通ResultSet，但没有显式finalize。libsql/index.js的Statement没有暴露finalize方法。client.close是同步、pool确有关闭所有连接；不是缺await。
+- close后的client以及WAL/已commit且close的事务场景，等待后仍EPERM，两次GC/事件循环回合后成功；ResultSet仍被JS变量引用不妨碍删除。故定位为未回收prepared-statement原生句柄在Windows阻挡删除，不是返回的普通结果集或一个尚未关闭的事务，也不是Vitest独有问题。
+- 第二组独立诊断30次WAL/事务/SELECT/close，保持maxRetries=5/retryDelay=100，两个GC回合后30/30可删除；活连接负向对照同样GC仍EPERM、仍可SELECT，close后回收才成功。8种诊断子进程均正常退出，父进程可删除其fixture目录。
+- 只观察了Windows Node24，不归因“Node24独有bug”；未查看原生Rust析构代码，不声称具体C API实现。GC仅用于诊断及测试资源边界，不用于生产数据库清理。
+
+### 仓库内实际修复（待同步Windows）
+
+- Vitest配置固定既有默认forks，并仅在测试worker的execArgv启用--expose-gc；没有改Node生产启动命令或注入临时runner替代仓库实现。
+- 测试专用removeTempDirectories变为async：两次明确的GC/事件循环回合后，再执行原有5次/100ms有界rm；缺GC显式失败，真实权限/活句柄失败继续AggregateError。所有调用hook和测试都await，不靠任意延时、无限重试或吞错。
+- 每个清理批次完整尝试后只报告一次，失败路径/cause保存在AggregateError，不再把旧失败目录重新排入每个后续无关test的hook，消除错误数量级联；永久失败仍导致当次测试/测试进程失败。
+- 增加“缺worker GC配置必须失败”和“已关闭真实client经过WAL/提交事务/保留ResultSet仍可清理”两项回归。新定向预计24项、全量预计269项，仅为新增数量推算，**尚未运行，不是通过结果**。
+- 新增.gitattributes，只为Biome可格式化的文本扩展名声明LF checkout；保持现有默认LF，不改Biome规则，不全仓转换、不处理MD或二进制。本机39个format错误均能用crlf追加参数消失，但默认门禁仍失败；仓库和info无attributes、仓库config无autocrlf/eol项，用户全局配置未读，转换机制不作臆断。
+
+### 下一步必须由Codex同步后执行
+
+本机源码仍4362a9d，本轮没有复制源码/补丁或临时runner注入以绕过同步，也没有改本机文档或Git信任。新commit追加到同一PR，不merge。Codex先保留未提交修改及中文MD命名，再同步新commit；LF属性对已有CRLF工作树可能不会自动生效，需在保留内容前提下按属性核对受影响文本的同步结果，不能强制reset/覆盖整个工作树。
+
+随后只在Windows按仓库配置实际跑定向/全量（不得skip）、三组TS、API/Web构建、默认只读Biome。pnpm当前会话PATH不可用，使用既有本地bin/npm即可，不安装依赖；Vitest/Vite调用继续禁用.env加载。追加CRLF检查必须单列，不能算默认通过；若清理仍失败保留完整cause/退出码。诊断30/30不是这套新代码的验收，默认format问题也尚未在新工作树验收。
+
+本轮不动生产openDatabase/迁移SQL/场所/调度，不启用Solana/S2，不读改运行库、不扫描/部署或启停用户服务。用户只要求本次修复与Windows测试，本轮不扩展生产副本迁移。

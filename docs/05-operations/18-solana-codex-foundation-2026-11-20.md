@@ -433,3 +433,16 @@ Codex 历史 Windows 结果为250通过/8清理失败，并非本轮复现。其
 
 
 本轮执行结果：助手Linux已修复上述异常关闭与有界清理，定向4文件/22项、全量45文件/267项、pnpm check及API/Web构建通过；check仍有72 warnings/50 infos，不声称零告警。Git原始blob核对16df52f的两个测试/db.ts均为LF，未全仓转换；本机CRLF来源机制未核。Windows真实释放及修复后回归尚待Codex复跑，不能用Linux结果替代。新增测试/实际限制及本机后续同步要求见实施交接；不启用S2或生产。
+
+
+## 2026-11-21 Windows EPERM 根因复核及第二次修复
+
+用户授权“修复，然后继续测试”；代码仍仅在助手 checkout 修改，所有运行验证仅Windows，不在助手Linux跑test/check/build。当前Windows HEAD/ref及修复文件确认4362a9d；其真实全量为255通过/12清理失败，不能沿用此前Linux通过结论。
+
+修复前Windows Node v24.11.1、@libsql/client 0.18.0/libsql 0.5.29最小对照证据：普通文件、raw Database只open/exec后close可删除；raw prepare SELECT并保留Statement时close后EPERM，等待50ms及保留Statement时GC仍失败，丢弃Statement并GC后成功。client仅create也产生健康检查SELECT；close后、等待后均EPERM，两次GC/事件循环回合后删除成功，保留已物化ResultSet不妨碍删除；WAL、已commit且close的transaction也相同。不运行Vitest也能复现，因此不是其断言/worker特有的未关闭事务；可定位到未回收prepared-statement原生句柄生命周期，但不推断未读取的原生析构实现，也不声称Node24独有问题。
+
+在Windows独立诊断中，保持5次/100ms删除配置，30组WAL/事务/SELECT/close经过有界GC回合均可删除；活连接负向对照仍EPERM且SELECT仍可用，close后回收才可删除。计划最小修复：仅Vitest forks显式暴露GC，测试清理await两个GC/事件循环回合，再执行原有有界删除；真正仍占用/权限失败继续AggregateError，不吞错、不跳过、不无限重试。清理队列按批消费一次，错误携带失败路径，避免旧失败被后续无关hook反复计算。新增缺GC/真实closed-client覆盖；不改生产openDatabase或依赖。
+
+格式独立问题：本机两测试/helper/db.ts是CRLF，Git原始提交为LF，Biome默认LF；仓库/本机info均无attributes，仓库config没有autocrlf/eol显式项，未读取用户全局Git设置。新增仅格式化源文件扩展名的LF checkout属性，不全仓转换，不覆盖中文MD或本机未提交修改；当前39个默认format错误只有Codex同步并保留内容核对行尾后才能实际复验，CRLF override不是默认通过。
+
+本节记录诊断与修复计划，不声明新提交已在Windows全量验收；最终代码/待同步/测试范围见实施交接。S2、服务、运行库、生产及16/BSC/DAMM/Orca/钱包边界不变。

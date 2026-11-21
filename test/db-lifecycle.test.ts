@@ -20,9 +20,9 @@ function client() {
 	vi.mocked(createClient).mockReturnValue(db as unknown as Client);
 	return db;
 }
-afterEach(() => {
+afterEach(async () => {
 	vi.resetAllMocks();
-	removeTempDirectories(directories);
+	await removeTempDirectories(directories);
 });
 
 it("closes synchronously when WAL initialization fails and preserves the original rejection", async () => {

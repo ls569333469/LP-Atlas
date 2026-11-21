@@ -1,0 +1,9 @@
+# Match Biome's existing default LF policy on checkout, including Windows.
+# No blanket text conversion; Markdown names/content and binary fixtures are untouched.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
