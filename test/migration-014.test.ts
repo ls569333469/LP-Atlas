@@ -255,7 +255,16 @@ it("rolls schema AND registration back when the version INSERT fails after all D
 		const before = await durable(db);
 		await db.executeMultiple(`CREATE TRIGGER fail_version BEFORE INSERT ON schema_migrations WHEN NEW.name='014_chain_identity.sql'
    BEGIN SELECT RAISE(ABORT,'injected registration failure'); END;`);
-		await expect(migrate(db)).rejects.toThrow("injected registration failure");
+		await expect(
+			migrate(db).catch((error: unknown) => {
+				// V8 lazy stacks can retain the failed native statement through Error.cause.
+				// Materialize diagnostics before Vitest retains the rejection for its matcher.
+				for (let cause = error; cause instanceof Error; cause = cause.cause) {
+					void cause.stack;
+				}
+				throw error;
+			}),
+		).rejects.toThrow("injected registration failure");
 		expect(await durable(db)).toBe(before);
 		expect(
 			(await db.execute("PRAGMA table_info(pools)")).rows.some((row) => row.name === "chain_key"),

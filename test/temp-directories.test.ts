@@ -7,7 +7,6 @@ import { removeTempDirectories } from "./helpers/temp-directories.ts";
 
 afterEach(() => {
 	vi.restoreAllMocks();
-	vi.unstubAllGlobals();
 });
 
 it("removes real temporary directories and clears successful tracking", async () => {
@@ -26,10 +25,9 @@ it("removes real temporary directories and clears successful tracking", async ()
 
 it("delegates bounded retries to Node for recursive removal", async () => {
 	const collect = vi.fn();
-	vi.stubGlobal("gc", collect);
 	const remove = vi.spyOn(fs, "rmSync").mockImplementation(() => {});
 	const directories = ["first", "second"];
-	await removeTempDirectories(directories);
+	await removeTempDirectories(directories, { collect });
 	expect(collect).toHaveBeenCalledTimes(2);
 	expect(remove.mock.calls).toEqual([
 		["first", { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }],
@@ -68,9 +66,10 @@ it("reports exhausted EPERM/EBUSY once without skipping other directories or con
 });
 
 it("fails explicitly if the committed worker GC option is missing", async () => {
-	vi.stubGlobal("gc", undefined);
 	const directories = ["not-created"];
-	await expect(removeTempDirectories(directories)).rejects.toThrow("--expose-gc");
+	await expect(removeTempDirectories(directories, { collect: undefined })).rejects.toThrow(
+		"--expose-gc",
+	);
 	expect(directories).toEqual(["not-created"]);
 });
 
@@ -96,6 +95,23 @@ it("releases a closed file client after WAL, committed transaction and materiali
 		expect(fs.existsSync(directory)).toBe(false);
 	} finally {
 		db?.close();
+		if (fs.existsSync(directory) && !directories.includes(directory)) directories.push(directory);
+		await removeTempDirectories(directories);
+	}
+});
+
+it("reports a live database handle instead of closing it or hiding the cleanup failure on Windows", async () => {
+	if (process.platform !== "win32") return;
+	const directory = fs.mkdtempSync(path.join(os.tmpdir(), "lp-cleanup-live-client-"));
+	const directories = [directory];
+	const db = createClient({ url: `file:${path.join(directory, "fixture.db")}` });
+	try {
+		await db.execute("PRAGMA journal_mode=WAL");
+		await expect(removeTempDirectories(directories)).rejects.toBeInstanceOf(AggregateError);
+		expect(db.closed).toBe(false);
+		expect((await db.execute("SELECT 1 AS value")).rows[0]?.value).toBe(1);
+	} finally {
+		db.close();
 		if (fs.existsSync(directory) && !directories.includes(directory)) directories.push(directory);
 		await removeTempDirectories(directories);
 	}

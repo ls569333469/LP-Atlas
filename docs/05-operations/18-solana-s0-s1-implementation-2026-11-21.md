@@ -111,3 +111,16 @@ Node安装类型声明确认：recursive:true才启用maxRetries，默认0；EPE
 随后只在Windows按仓库配置实际跑定向/全量（不得skip）、三组TS、API/Web构建、默认只读Biome。pnpm当前会话PATH不可用，使用既有本地bin/npm即可，不安装依赖；Vitest/Vite调用继续禁用.env加载。追加CRLF检查必须单列，不能算默认通过；若清理仍失败保留完整cause/退出码。诊断30/30不是这套新代码的验收，默认format问题也尚未在新工作树验收。
 
 本轮不动生产openDatabase/迁移SQL/场所/调度，不启用Solana/S2，不读改运行库、不扫描/部署或启停用户服务。用户只要求本次修复与Windows测试，本轮不扩展生产副本迁移。
+
+
+## Codex Windows 最终验证（2026-11-21）
+
+ffa950a 的266/269失败已修复：回滚故障断言前展开原异常及 cause 的惰性堆栈，释放其保留的 native statement；GC配置测试改为显式注入，不重定义不可配置的全局 gc。新增真实活连接负向检查，清理仍须严格失败且不得关闭连接，关闭后才允许清理。仅修改测试，不改变生产数据库生命周期或迁移SQL。
+
+Windows Node v24.11.1 最终全量45文件、270项全部通过，包含迁移原子回滚/重试、旧EVM身份与接口、链隔离及临时数据库清理。默认 npm run check 退出0，Biome及三组TypeScript通过，保留72 warnings、50 infos；33项格式错误按现有LF合同修复，不放宽门禁或覆盖本机已有改动。API tsc 与Web Vite构建通过，仅覆盖输出目录至 node_modules/.cache/lp-atlas-s1-codex-final/build，不覆盖运行dist。日志见同缓存目录 full.log、check.log、build-web.log；此前Linux通过及Windows失败保留为历史，不作为本次结果。
+
+- [x] S0 标准与S1兼容底座：通过（代码及Windows离线验证）。
+- [ ] 生产部署、运行库迁移：未执行，本轮范围不含。
+- [ ] S2费用、小时覆盖、历史状态与报价来源：受阻，继续按方案18核实，未启用Solana扫描。
+
+本轮未读取或修改运行库，未启停服务，未改变五分钟调度、准入/排序/金额或其他场所状态。

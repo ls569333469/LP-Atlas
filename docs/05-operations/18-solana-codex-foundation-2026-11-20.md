@@ -446,3 +446,9 @@ Codex 历史 Windows 结果为250通过/8清理失败，并非本轮复现。其
 格式独立问题：本机两测试/helper/db.ts是CRLF，Git原始提交为LF，Biome默认LF；仓库/本机info均无attributes，仓库config没有autocrlf/eol显式项，未读取用户全局Git设置。新增仅格式化源文件扩展名的LF checkout属性，不全仓转换，不覆盖中文MD或本机未提交修改；当前39个默认format错误只有Codex同步并保留内容核对行尾后才能实际复验，CRLF override不是默认通过。
 
 本节记录诊断与修复计划，不声明新提交已在Windows全量验收；最终代码/待同步/测试范围见实施交接。S2、服务、运行库、生产及16/BSC/DAMM/Orca/钱包边界不变。
+
+## Codex Windows 收尾修复（2026-11-21）
+
+范围仅S0/S1测试与既有格式合同，不部署、不迁移运行库、不启用S2。ffa950a复验266/269，仍不能作为Windows验收通过。
+
+已独立复现：触发器RAISE异常被保留时，关闭连接并两次GC仍EPERM；读取异常及cause的惰性stack后，同样两次GC即可删除。故障用例须在保留原错和断言前提下展开堆栈，不能靠延长同步删除等待掩盖句柄引用。GC参数测试通过显式注入回收函数测试，不重定义不可配置的全局gc。仅对静态检查实际报错文件核对LF行尾并保留本机修改，不全仓格式重写。修复后Windows最终全量45文件/270项通过（含真实活连接清理失败负向检查），默认静态检查与三组类型检查通过（72 warnings、50 infos），API/Web隔离目录构建通过。S0/S1代码及离线验证完成，生产部署/运行库迁移未执行，S2仍受阻；详见实施交接“Codex Windows 最终验证”及缓存 node_modules/.cache/lp-atlas-s1-codex-final/。

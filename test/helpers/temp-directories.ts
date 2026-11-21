@@ -2,9 +2,12 @@ import fs from "node:fs";
 import { setImmediate } from "node:timers/promises";
 
 /** Closed libsql clients can leave unreachable native statements until GC finalizes them. */
-export async function removeTempDirectories(directories: string[]): Promise<void> {
+export async function removeTempDirectories(
+	directories: string[],
+	options: { collect: (() => void) | undefined } = { collect: globalThis.gc },
+): Promise<void> {
 	if (!directories.length) return;
-	const collect = globalThis.gc;
+	const collect = options.collect;
 	if (typeof collect !== "function") {
 		throw new Error("Temporary database cleanup requires Vitest forks with --expose-gc");
 	}
