@@ -12,12 +12,18 @@ export async function openDatabase(databasePath: string): Promise<AppDatabase> {
 	fs.mkdirSync(path.dirname(resolved), { recursive: true });
 	const db = createClient({ url: `file:${resolved}` });
 	// A board read must keep one snapshot while the scanner publishes its next revision.
-	await db.execute("PRAGMA journal_mode = WAL");
 	try {
+		await db.execute("PRAGMA journal_mode = WAL");
 		await migrate(db);
 		return db;
 	} catch (error) {
-		db.close();
+		try {
+			db.close();
+		} catch (closeError) {
+			throw new AggregateError([error, closeError], "Database initialization and close failed", {
+				cause: error,
+			});
+		}
 		throw error;
 	}
 }

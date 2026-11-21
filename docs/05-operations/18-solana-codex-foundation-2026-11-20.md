@@ -419,3 +419,17 @@ Circle官方USDC主网表确认 `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`�
 
 
 - 2026-11-21（Asia/Shanghai）：按用户明确授权完成S0/S1离线实施；实际代码、测试、未做及回滚边界见[本轮实施交接](18-solana-s0-s1-implementation-2026-11-21.md)。此前“待实施”保留为11月20日草案历史，不代表生产已启用。
+
+
+## 2026-11-21 S0/S1 Windows 清理复核与修复
+
+用户明确授权核对、先记录再修复；历史“本轮仅MD”为此前复审边界，不覆盖本次授权。本机方案18已增量追加问题及计划，未覆盖 Codex 文档修改；代码仅在助手 checkout 实施。
+
+已核实：两个新增测试 afterEach 无重试立即 rmSync，首错中断其余目录清理；legacy fixture 初始化、首次连接使用及 openDatabase 的 WAL 初始化有异常关闭保护缺口。migrate 失败已有 close，事务已有 finally close，不能误报缺失；安装的 libsql close 是同步 API，不能以加 await 代替释放验证。上述源码缺口并不证明就是 Windows EPERM 的实际根因。
+
+本轮计划：补齐连接异常关闭保护并保留原始错误；临时目录使用 Node recursive rmSync 的 maxRetries:5/retryDelay:100 有界重试，全部目录尽力清理并汇总最终失败；补失败路径测试，在助手 Linux 跑定向/全量、check/build，不访问运行库或启动扫描。实际结果见[实施交接](18-solana-s0-s1-implementation-2026-11-21.md)。
+
+Codex 历史 Windows 结果为250通过/8清理失败，并非本轮复现。其 CRLF 格式差异不作全仓转换理由；本机两测试/db.ts 为CRLF而biome配置为LF，未据此证明提交内容有误。Windows实际释放及回归仍待复跑；不启用Solana/S2，不动16/BSC/DAMM/Orca/钱包，不部署或迁移运行库。
+
+
+本轮执行结果：助手Linux已修复上述异常关闭与有界清理，定向4文件/22项、全量45文件/267项、pnpm check及API/Web构建通过；check仍有72 warnings/50 infos，不声称零告警。Git原始blob核对16df52f的两个测试/db.ts均为LF，未全仓转换；本机CRLF来源机制未核。Windows真实释放及修复后回归尚待Codex复跑，不能用Linux结果替代。新增测试/实际限制及本机后续同步要求见实施交接；不启用S2或生产。

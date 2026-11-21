@@ -3,8 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { type Client, createClient } from "@libsql/client";
-import { afterEach, expect, it } from "vitest";
+import { type Client, createClient, type InStatement } from "@libsql/client";
+import { afterEach, expect, it, vi } from "vitest";
 import { loadCatalog } from "../src/normalize/catalog-cache.ts";
 import { migrate, migrationBody, openDatabase } from "../src/store/db.ts";
 import {
@@ -18,6 +18,7 @@ import {
 	upsertScannedHour,
 	upsertWindow,
 } from "../src/store/repositories.ts";
+import { removeTempDirectories } from "./helpers/temp-directories.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/store/migrations");
 const dirs: string[] = [];
@@ -27,7 +28,8 @@ function temp() {
 	return dir;
 }
 afterEach(() => {
-	for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+	vi.restoreAllMocks();
+	removeTempDirectories(dirs);
 });
 function migrationDir(before14 = false) {
 	const dir = temp();
@@ -36,49 +38,64 @@ function migrationDir(before14 = false) {
 			fs.copyFileSync(path.join(root, f), path.join(dir, f));
 	return dir;
 }
-async function legacy() {
+async function legacy(connect = createClient) {
 	const filename = path.join(temp(), "fixture.db");
-	const db = createClient({ url: `file:${filename}` });
-	await migrate(db, migrationDir(true));
-	for (const [rowid, chainId, poolId] of [
-		[3, 99901, "same"],
-		[19, 4663, "4663:uniswap_v3:same"],
-	] as const) {
-		await db.execute({
-			sql: `INSERT INTO pools(rowid,pool_id,chain_id,protocol,token0,token1,fee_pips,tick_spacing,created_block,discovered_at)
+	const db = connect({ url: `file:${filename}` });
+	try {
+		await migrate(db, migrationDir(true));
+		for (const [rowid, chainId, poolId] of [
+			[3, 99901, "same"],
+			[19, 4663, "4663:uniswap_v3:same"],
+		] as const) {
+			await db.execute({
+				sql: `INSERT INTO pools(rowid,pool_id,chain_id,protocol,token0,token1,fee_pips,tick_spacing,created_block,discovered_at)
    VALUES (?,?,?,'uniswap_v3','0x01','0x02',3000,60,100,'2026-11-20T00:00:00Z')`,
-			args: [rowid, poolId, chainId],
-		});
-		await db.execute({
-			sql: "INSERT INTO tokens(chain_id,address,symbol,decimals) VALUES (?,'0x01','T',18)",
-			args: [chainId],
-		});
-		await db.execute({
-			sql: `INSERT INTO window_aggregates(pool_id,window_start,window_end,complete,volume0,volume1,lp_fees0,lp_fees1,swap_count,volume_usd,lp_fees_usd,source,as_of,fee_status)
+				args: [rowid, poolId, chainId],
+			});
+			await db.execute({
+				sql: "INSERT INTO tokens(chain_id,address,symbol,decimals) VALUES (?,'0x01','T',18)",
+				args: [chainId],
+			});
+			await db.execute({
+				sql: `INSERT INTO window_aggregates(pool_id,window_start,window_end,complete,volume0,volume1,lp_fees0,lp_fees1,swap_count,volume_usd,lp_fees_usd,source,as_of,fee_status)
    VALUES (?,3600,7200,1,'100000000000000001','20','3','4',2,'123.456789','10.000001','self_built','2026-11-20T00:00:00Z','estimated')`,
-			args: [poolId],
-		});
-		await db.execute({
-			sql: `INSERT INTO scanned_hours(chain_id,protocol,window_start,window_end,complete,from_block,to_block,as_of,usd_valuation_version)
+				args: [poolId],
+			});
+			await db.execute({
+				sql: `INSERT INTO scanned_hours(chain_id,protocol,window_start,window_end,complete,from_block,to_block,as_of,usd_valuation_version)
    VALUES (?,'uniswap_v3',3600,7200,1,'10','100','2026-11-20T00:00:00Z',2)`,
-			args: [chainId],
-		});
-	}
-	for (const [key, value] of [
-		["v3_discover_block", "101"],
-		["v4_discover_block", "102"],
-		["4663:v3_discover_block", "201"],
-		["4663:v4_discover_block", "202"],
-	] as const) {
-		await db.execute({ sql: "INSERT INTO meta VALUES (?,?)", args: [key, value] });
-	}
-	await db.execute(
-		`INSERT INTO chain_publications VALUES ('elysium',7,1,'100','2026-11-20T00:00:00Z','2026-11-20T00:00:00Z')`,
-	);
-	// Historical deferral snapshot is persisted in the old schema's exact input shape.
-	await db.execute(`INSERT INTO usd_repair_deferrals VALUES ('same',3600,'100','2026-11-20T00:00:00Z',
+				args: [chainId],
+			});
+		}
+		for (const [key, value] of [
+			["v3_discover_block", "101"],
+			["v4_discover_block", "102"],
+			["4663:v3_discover_block", "201"],
+			["4663:v4_discover_block", "202"],
+		] as const) {
+			await db.execute({ sql: "INSERT INTO meta VALUES (?,?)", args: [key, value] });
+		}
+		await db.execute(
+			`INSERT INTO chain_publications VALUES ('elysium',7,1,'100','2026-11-20T00:00:00Z','2026-11-20T00:00:00Z')`,
+		);
+		// Historical deferral snapshot is persisted in the old schema's exact input shape.
+		await db.execute(`INSERT INTO usd_repair_deferrals VALUES ('same',3600,'100','2026-11-20T00:00:00Z',
   json_array('100000000000000001','20','3','4',2,'123.456789','10.000001',NULL,'estimated',NULL,NULL,NULL),19,2,'no_historical_path','fixture')`);
-	return { db, filename };
+		return { db, filename };
+	} catch (error) {
+		try {
+			db.close();
+		} catch (closeError) {
+			throw new AggregateError(
+				[error, closeError],
+				"Legacy fixture initialization and close failed",
+				{
+					cause: error,
+				},
+			);
+		}
+		throw error;
+	}
 }
 async function durable(db: Client) {
 	const values: Record<string, unknown> = {};
@@ -104,18 +121,22 @@ async function durable(db: Client) {
 
 it("preserves sparse pool rowids, exact amounts, deferrals, publication and all four discovery keys across upgrade/reopen", async () => {
 	const { db, filename } = await legacy();
-	const before = await durable(db);
-	await migrate(db);
-	expect(await durable(db)).toBe(before);
-	expect((await db.execute("PRAGMA integrity_check")).rows[0]?.integrity_check).toBe("ok");
-	expect((await db.execute("PRAGMA foreign_key_check")).rows).toEqual([]);
-	expect(await listTokens(db)).toHaveLength(2);
-	expect((await listPools(db, 4663))[0]?.nativePoolId).toBe("same");
-	expect((await listPoolAdditions(db, 99901, 0)).rowIds).toEqual([3]);
-	expect(await listDeferredUsdRepairs(db, 99901)).toEqual(new Map([[3600, new Set(["same"])]]));
-	await migrate(db);
-	expect(await durable(db)).toBe(before);
-	db.close();
+	let before: string;
+	try {
+		before = await durable(db);
+		await migrate(db);
+		expect(await durable(db)).toBe(before);
+		expect((await db.execute("PRAGMA integrity_check")).rows[0]?.integrity_check).toBe("ok");
+		expect((await db.execute("PRAGMA foreign_key_check")).rows).toEqual([]);
+		expect(await listTokens(db)).toHaveLength(2);
+		expect((await listPools(db, 4663))[0]?.nativePoolId).toBe("same");
+		expect((await listPoolAdditions(db, 99901, 0)).rowIds).toEqual([3]);
+		expect(await listDeferredUsdRepairs(db, 99901)).toEqual(new Map([[3600, new Set(["same"])]]));
+		await migrate(db);
+		expect(await durable(db)).toBe(before);
+	} finally {
+		db.close();
+	}
 	const reopened = await openDatabase(filename);
 	try {
 		expect(await durable(reopened)).toBe(before);
@@ -286,8 +307,12 @@ it.each(["before", "after"])(
 	"recovers after abrupt process exit %s version registration but before commit",
 	async (breakpoint) => {
 		const { db, filename } = await legacy();
-		const before = await durable(db);
-		db.close();
+		let before: string;
+		try {
+			before = await durable(db);
+		} finally {
+			db.close();
+		}
 		const moduleUrl = pathToFileURL(path.resolve(root, "../db.ts")).href;
 		const script = `import {createClient} from '@libsql/client'; import {migrate} from ${JSON.stringify(moduleUrl)};
  const db=createClient({url:${JSON.stringify(`file:${filename}`)}}); const transaction=db.transaction.bind(db);
@@ -324,3 +349,27 @@ it("unwraps only known outer transaction wrappers and refuses nested controls", 
 	expect(() => migrationBody("CREATE TABLE t(x); COMMIT;")).toThrow();
 	expect(() => migrationBody("PRAGMA foreign_keys=OFF;")).toThrow();
 });
+
+it.each(["migration", "fixture"])(
+	"closes a legacy connection when %s initialization fails",
+	async (stage) => {
+		const db = createClient({ url: `file:${path.join(temp(), "failed.db")}` });
+		try {
+			const originalExecute = db.execute.bind(db);
+			const failure = new Error(`injected ${stage} initialization failure`);
+			vi.spyOn(db, "execute").mockImplementation((statement: InStatement) => {
+				const sql = typeof statement === "string" ? statement : statement.sql;
+				if (
+					(stage === "migration" && sql.includes("CREATE TABLE IF NOT EXISTS schema_migrations")) ||
+					(stage === "fixture" && sql.startsWith("INSERT INTO pools"))
+				)
+					return Promise.reject(failure);
+				return originalExecute(statement);
+			});
+			await expect(legacy(() => db)).rejects.toBe(failure);
+			expect(db.closed).toBe(true);
+		} finally {
+			db.close();
+		}
+	},
+);

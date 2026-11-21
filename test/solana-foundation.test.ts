@@ -27,10 +27,11 @@ import {
 	upsertWindow,
 } from "../src/store/repositories.ts";
 import type { StoredOfficialWindow, StoredSolanaPool } from "../src/store/types.ts";
+import { removeTempDirectories } from "./helpers/temp-directories.ts";
 
 const dirs: string[] = [];
 afterEach(() => {
-	for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+	removeTempDirectories(dirs);
 });
 const dir = () => {
 	const value = fs.mkdtempSync(path.join(os.tmpdir(), "lp-solana-"));

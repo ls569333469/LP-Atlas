@@ -49,3 +49,32 @@ BSC、DAMM V2、Orca、钱包/交易、方案16不动；不merge、不部署、�
 ## 基线比对范围
 
 GitHub基线缺17/18，现已从用户本机现行MD导入。只读比对确认03-code一致，场所路径/决策的Solana顺序更新已定向保留；与任务无关的本机研究文档重命名未强行导入。用户本机repositories.ts与GitHub基线LF归一化后一致。未声称全本机工作树一致：本机Git状态读取遇dubious ownership，未修改safe.directory或其他用户设置，也未覆盖用户文件。
+
+
+## PR #1 复核修复（2026-11-21，Asia/Shanghai）
+
+本次基于已推送的 `16df52fd66bbbc7e2e84af934a0881002df61ab5`，继续同一分支/PR，新增提交而非改历史。执行前及自审时远程分支均仍为该提交。本机方案18已在原文件末尾增量写入核实问题及计划（423行起），保留本机原文/Codex改动；本机源码未修改，也未在本机运行Git、测试或服务。
+
+### 实际修复
+
+- `src/store/db.ts`：WAL初始化移入失败关闭保护；迁移失败原本已有关闭逻辑，现继续保留。初始化和close同时失败时用带cause的AggregateError保留两者，不用关闭错误掩盖原错。close仍按同步API调用；没有改迁移SQL/事务口径。
+- `test/migration-014.test.ts`：legacy初始化失败关闭；首个测试和崩溃恢复测试的首次连接使用纳入finally；两个初始化故障注入分别确认迁移初始化/fixture写入失败后真实client已close。崩溃子进程的故意退出保持，不能把crash模拟改成正常关闭。
+- 两个新增测试文件的afterEach共用小型测试专用 `test/helpers/temp-directories.ts`：recursive rmSync，maxRetries=5、retryDelay=100；各目录尽力清理，最终AggregateError包含路径和原始cause，保留失败路径供后续清理，不吞失败、不因首错跳过其余目录。
+- 新增 `test/db-lifecycle.test.ts`（4项）及 `test/temp-directories.test.ts`（3项）：WAL/迁移初始化错误、关闭自身错误、成功转交连接；真实临时目录删除、Node有界重试参数、模拟耗尽EPERM/EBUSY后的错误传播和多目录完整尝试。
+
+### 本轮实际验证
+
+平台：助手Linux，Node v20.19.2、pnpm 10.34.6；未安装新依赖。2026-11-21约21:53（Asia/Shanghai）。
+
+- 定向：`pnpm exec vitest run test/migration-014.test.ts test/solana-foundation.test.ts test/db-lifecycle.test.ts test/temp-directories.test.ts`：4文件、22项通过。
+- 全量：`pnpm test`：45文件、267项通过（比原258项增加9项）。既有迁移原子性/断点重启、rowid/meta/延期水位、EVM身份及v1/v2搜索排序分页/snapshot/poolKeys回归在全量中继续通过。
+- `pnpm check`：退出0，Biome加三组TypeScript通过；Biome报告72 warnings、50 infos（含旧配置弃用提示），不是零告警。本轮6个TS文件定向Biome检查通过，无新增文件级warning；未全仓自动修格式。
+- `pnpm build`：API及Web均通过，未启动构建产物或dev服务。
+- `git diff --check`通过。读取16df52f的Git原始blob及本轮工作树确认两个测试、db.ts、biome.json均为LF；本机先前读到的CRLF不是这三个TS提交blob的原始换行。未读取/改变本机Git属性或换行配置，不能据此归因具体转换机制；仅保持本轮文件的项目既有格式。
+- 过程中新增测试曾因不可spy的ESM导出及execute重载推断报错；已改为测试fixture局部连接工厂注入和显式InStatement类型，并重跑上述最终定向/全量/check；不把失败轮次算作通过。
+
+### 尚未验证 / 不变边界
+
+Node安装类型声明确认：recursive:true才启用maxRetries，默认0；EPERM/EBUSY等使用线性退避。测试验证的是有限参数委托、模拟最终失败传播与Linux实际目录清理，**没有独立复现Windows原生句柄释放、Node内部每次重试时序或证明Windows问题已消失**。Codex的250通过/8清理失败是修复前历史报告，不是本轮复现。仍需Codex保留本机未提交修改后同步新commit，在Windows复跑定向、全量、check/build；遇CRLF差异先核实际格式，不全仓转换或忽略失败。
+
+本轮不改已应用迁移，不读/迁移生产或运行库，不做生产副本预演；所有DB测试仅临时库/fixture及已有mock。没有启用Solana/S2、新报价源或真实扫描，没有部署；16/BSC/DAMM/Orca/钱包、五分钟频率/小时账本/六窗/准入规则不变。S2费用归属、覆盖/截止、历史字段和报价政策等阻塞继续保留。
