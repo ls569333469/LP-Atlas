@@ -23,7 +23,10 @@ import {
 	upsertToken,
 	upsertWindow,
 } from "../src/store/repositories.ts";
-import type { StoredPool, StoredWindow } from "../src/store/types.ts";
+import type {
+	StoredEvmPool as StoredPool,
+	StoredNativeWindow as StoredWindow,
+} from "../src/store/types.ts";
 
 const pool = (
 	id: string,

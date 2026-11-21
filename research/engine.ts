@@ -19,10 +19,10 @@ import {
 } from "../src/shared/constants.ts";
 import { feeDataUsable } from "../src/shared/fee-quality.ts";
 import type {
-	StoredPool,
-	StoredScannedHour,
-	StoredToken,
-	StoredWindow,
+	StoredEvmPool as StoredPool,
+	StoredEvmScannedHour as StoredScannedHour,
+	StoredEvmToken as StoredToken,
+	StoredNativeWindow as StoredWindow,
 } from "../src/store/types.ts";
 import { type PositionFeeHour, positionFeeDelta } from "./position-fees.ts";
 

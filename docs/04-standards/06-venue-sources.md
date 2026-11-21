@@ -2,7 +2,7 @@
 
 > 2026-11-16已确认RedStone Push统一报价合同见本文末节及方案13第9/9.10节。涉及主资产报价的旧描述已被该合同取代；报价层及历史纠错已部署，本轮统一验收及未恢复限制以05-roadmap“美元计价修复”为准。
 
-截至 2026-11-12（Asia/Shanghai）。本文件是多链扫描数据路径的分类标准，供 Codex 与后续迭代遵守。产品口径仍以 [LP Atlas 项目标准](https://cursor.com/canvas/store-228dc691-956a-4bc2-a808-727d3a2b74e5/e5325002-b925-4eb0-a1cd-0e6aa760e873) 为准。
+截至 2026-11-12（Asia/Shanghai）。本文件是多链扫描数据路径的分类标准，供 Codex 与后续迭代遵守。 2026-11-20 用户确认下一步先接 Solana，BSC 暂时不动；Solana 接入边界见 [方案 17](../05-operations/17-solana-venue-architecture-2026-11-20.md)。本文件只更新路径说明，不宣布启用，不得据此拉生产数据。产品口径仍以 [LP Atlas 项目标准](https://cursor.com/canvas/store-228dc691-956a-4bc2-a808-727d3a2b74e5/e5325002-b925-4eb0-a1cd-0e6aa760e873) 为准。
 
 ## 必须遵守
 
@@ -21,14 +21,14 @@
 | 链 | 协议 | 计划 ingest | 说明 |
 | --- | --- | --- | --- |
 | Elysium | Uniswap V3 / V4 | self_built | 已启用。归档 RPC 自建小时档；V4 走官方 StateView。 |
-| BSC | Pancake V3 | official_index | 启动 BSC 时的第一批。官方 Exchange V3 subgraph（1h + 1d）。 |
+| BSC | Pancake V3 | official_index | 启动 BSC 时的第一批。官方 Exchange V3 subgraph（1h + 1d）。2026-11-20 起暂时不动，须另行授权后再启动。 |
 | BSC | Uniswap V3 | self_built | 未发现 Labs 生产索引；默认同自建小时档。 |
 | BSC | Pancake Infinity / Uniswap V4 | not_started | 后续再按当时官方协议单独写适配器。 |
 | Ethereum | Uniswap V3 / V4 | official_index | 优先 Labs 或官方自托管 subgraph；生产 ID 尚未确认。 |
 | Base | Uniswap V3 / V4 | official_index | 与 Ethereum 相同。 |
 | Base | Pancake Infinity | not_started | 已列入，轮到再写。 |
 | Robinhood Chain | Uniswap V3 / V4 | self_built | The Graph 目前仅 Substreams，无官方托管 subgraph。专用说明见 [08-robinhood-venue.md](08-robinhood-venue.md)。2026-11-14 已授权启用并生产拉数，实现按该说明填充。 |
-| Solana | Meteora DLMM / Raydium CLMM / Meteora DAMM V2 | not_started | 轮到再写。Arbitrum 不进正式清单。 |
+| Solana | Meteora DLMM / Raydium CLMM / Meteora DAMM V2 | not_started | 下一步先做 Solana，但尚未启用，不得生产拉数。第一批只做 Meteora DLMM，再单独做 Raydium CLMM；DAMM V2 仍为后期协议，不提前实现。官方窗口、手续费口径、链标识和自建小时档边界见 [方案 17](../05-operations/17-solana-venue-architecture-2026-11-20.md)。Arbitrum 不进正式清单。 |
 
 ## 适配器目录结构
 
@@ -53,7 +53,7 @@
 1. 在 `src/shared/catalog.ts` 列入场所（先 `listed_not_implemented`）。
 2. 在 `src/shared/venue-sources.ts` 写明 ingest、官方窗口、合约地址、环境变量和下一步注意事项。官方地址放 `src/shared/deployments.ts`。
 3. 在 `src/adapters/venues/<chain>/<protocol>.ts` 建立占位适配器并导出 `venueAdapter`，同时挂到 `src/adapters/venues/index.ts`。注册表必须保持与目录 1:1。占位适配器必须在场所启用之前就存在。未启用前不得把占位改成 ready，也不得接入默认刷新。
-4. 填充占位时，只改该场所文件（及它真正需要的共享辅助函数），不要新建平行适配器目录。官方索引场所扩展 `src/adapters/official-index.ts` 的映射，不要新建平行客户端。自建场所沿用 Elysium 的小时档扫描模式。
+4. 填充占位时，只改该场所文件（及它真正需要的共享辅助函数），不要新建平行适配器目录。官方索引场所扩展 `src/adapters/official-index.ts` 的映射，不要新建平行客户端。自建场所沿用整点小时记账和续接语义。Solana 的自建窗口不得照抄以太坊的按区块日志模型，详见方案 17。
 5. 计算与展示层保持不动，除非刷新范围已经按目录过滤这种最小钩子。
 6. 标准宣布启用后，才把状态改为 `enabled`、把适配器改为 `kind: "ready"`，并接入默认刷新。第一期验收通过前，不得开工后续链的生产拉数。2026-11-14 用户确认的例外：仅 Robinhood Chain 的 Uniswap V3 / V4 可在 Elysium 验收完成前并行生产拉数，规则见 [08-robinhood-venue.md](08-robinhood-venue.md)。其他已列入场所仍不得提前启用。
 
@@ -74,3 +74,7 @@
 - 复用原币累计及repair-hour按小时重建价格表，重估旧版本非空错误金额，不重拉全部Swap、不统一倍乘。TVL仍依赖业务链历史储备；修复不得覆盖较新续接，失败保留旧值及旧计价版本。金额、来源引用/计价版本、链发布版本沿小时事务提交。
 - 报价失败不得阻止原币成交、费用和覆盖提交；美元缺失不补0、不把陈旧金额标成当前完成。价格使用独立超时与请求资源，不继承360秒日志等待，有限尝试后快速结束，不与日志或另一资产互相阻塞。关闭新报价不得静默恢复已证实错误的旧多跳为正确值。
 - 不改变费用算法、窗口、保留期、准入、前端布局或未启用场所。实施/部署授权与文档合同确认分开记录，不因本节写入就标记代码或金额验收完成。
+
+## Solana S0审核（2026-11-21）
+
+方案18收紧旧窗口能力表：DLMM历史小时仅为候选官方累计美元数据，不代表原币/历史TVL/价格边界/普通LP费用/源截止可用。“加总”只适用于已核单位和覆盖的可加量。`observedAt`不是source cutoff，未知finality不得墙钟封口。S1只准备身份、存储与能力合同；DLMM/CLMM/DAMM V2保持not_started，占位与默认刷新不变。源语义与报价/预算门在S2前独立核验，未授权不接新源。

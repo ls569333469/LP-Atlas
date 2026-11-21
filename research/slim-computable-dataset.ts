@@ -2,7 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isHypeLike, isOfficialUsdStable } from "../src/normalize/prices.ts";
-import type { StoredPool, StoredToken, StoredWindow } from "../src/store/types.ts";
+import type {
+	StoredEvmPool as StoredPool,
+	StoredEvmToken as StoredToken,
+	StoredNativeWindow as StoredWindow,
+} from "../src/store/types.ts";
 import { type Dataset, qualifies } from "./engine.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

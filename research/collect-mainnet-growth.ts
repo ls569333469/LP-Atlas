@@ -7,7 +7,7 @@ import {
 	ELYSIUM_PUBLIC_RPC_URL,
 	UNISWAP_V4_ELYSIUM,
 } from "../src/shared/constants.ts";
-import type { StoredPool } from "../src/store/types.ts";
+import type { StoredEvmPool as StoredPool } from "../src/store/types.ts";
 import type { PositionFeeHour } from "./position-fees.ts";
 
 export type GrowthPlan = {

@@ -10,7 +10,11 @@ import {
 } from "../src/normalize/price-bridges.ts";
 import { repairClosedHour } from "../src/normalize/repair-hour.ts";
 import { ELYSIUM_USDC_ADDRESS, ZERO_ADDRESS } from "../src/shared/constants.ts";
-import type { StoredPool, StoredScannedHour, StoredWindow } from "../src/store/types.ts";
+import type {
+	StoredEvmPool as StoredPool,
+	StoredEvmScannedHour as StoredScannedHour,
+	StoredNativeWindow as StoredWindow,
+} from "../src/store/types.ts";
 
 const x = `0x${"1".repeat(40)}`;
 const y = `0x${"2".repeat(40)}`;

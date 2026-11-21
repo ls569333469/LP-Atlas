@@ -25,7 +25,10 @@ import {
 	upsertScannedHour,
 	upsertToken,
 } from "../src/store/repositories.ts";
-import type { StoredScannedHour, StoredWindow } from "../src/store/types.ts";
+import type {
+	StoredEvmScannedHour as StoredScannedHour,
+	StoredNativeWindow as StoredWindow,
+} from "../src/store/types.ts";
 
 it.each([
 	"normal",

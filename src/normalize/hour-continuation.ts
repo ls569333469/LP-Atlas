@@ -1,5 +1,8 @@
 import type { SwapWindowAcc } from "../adapters/types.ts";
-import type { StoredScannedHour, StoredWindow } from "../store/types.ts";
+import type {
+	StoredEvmScannedHour as StoredScannedHour,
+	StoredNativeWindow as StoredWindow,
+} from "../store/types.ts";
 import type { BlockBoundedWindow } from "./windows-from-swaps.ts";
 
 export function hourContinuation(

@@ -12,7 +12,7 @@ import {
 	selectRefreshHours,
 } from "../src/normalize/refresh-hours.ts";
 import { METRIC_SOURCE_SELF_BUILT } from "../src/shared/constants.ts";
-import type { StoredWindow } from "../src/store/types.ts";
+import type { StoredNativeWindow as StoredWindow } from "../src/store/types.ts";
 
 function hour(
 	partial: Partial<StoredWindow> & Pick<StoredWindow, "windowStart" | "windowEnd">,

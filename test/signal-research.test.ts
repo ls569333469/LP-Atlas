@@ -6,7 +6,7 @@ import { type Dataset, inventory, netPnl, qualifies, ResearchEngine } from "../r
 import { PLAYBOOKS, rollAccount, simulate } from "../research/lifecycle.ts";
 import { positionFeeDelta } from "../research/position-fees.ts";
 import { ELYSIUM_USDC_ADDRESS, ZERO_ADDRESS } from "../src/shared/constants.ts";
-import type { StoredWindow } from "../src/store/types.ts";
+import type { StoredNativeWindow as StoredWindow } from "../src/store/types.ts";
 
 const H = 3600,
 	start = 1794402000;

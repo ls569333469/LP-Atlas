@@ -42,6 +42,7 @@ export type MetricValue = {
 	reason?: string;
 };
 
+/** Legacy v1/v2 EVM wire contract. Non-EVM storage uses ChainRef; it is not coerced into this type. */
 export type TokenRef = {
 	name?: string | null;
 	chainId: number;
@@ -250,3 +251,5 @@ export type RefreshResponse =
 	| RefreshAcceptedResponse
 	| RefreshSuccessResponse
 	| RefreshErrorResponse;
+
+export type { ChainRef } from "./chain-ref.ts";

@@ -13,6 +13,7 @@ import {
 	listTokensForPools,
 	listWindowsInRange,
 } from "../src/store/repositories.ts";
+import { isEvmPool, isEvmScannedHour, isEvmToken, isNativeWindow } from "../src/store/types.ts";
 import {
 	type Dataset,
 	netPnl,
@@ -53,11 +54,13 @@ if (input) {
 		const earliest = await tx.execute(
 			"SELECT MIN(window_start) AS earliest FROM window_aggregates",
 		);
-		const all = await listWindowsInRange(tx, Number(earliest.rows[0]?.earliest ?? start), end + H);
+		const all = (
+			await listWindowsInRange(tx, Number(earliest.rows[0]?.earliest ?? start), end + H)
+		).filter(isNativeWindow);
 		const candidateIds = [
 			...new Set(all.filter((h) => h.windowStart >= start && qualifies(h)).map((h) => h.poolId)),
 		];
-		const pools = await listPoolsByIds(tx, candidateIds);
+		const pools = (await listPoolsByIds(tx, candidateIds)).filter(isEvmPool);
 		dataset = {
 			schema: 1,
 			exportedAt: new Date().toISOString(),
@@ -73,7 +76,7 @@ if (input) {
 		};
 		// Bridge selection comes from this same transaction, including retired bridge pools.
 		const allIds = [...new Set(all.map((h) => h.poolId))];
-		const catalog = await listPoolsByIds(tx, allIds);
+		const catalog = (await listPoolsByIds(tx, allIds)).filter(isEvmPool);
 		const bridgePools = catalog.filter(
 			(p) =>
 				(isHypeLike(p.token0) && isOfficialUsdStable(p.token1)) ||
@@ -81,15 +84,19 @@ if (input) {
 		);
 		const poolMap = new Map(pools.map((p) => [p.poolId, p])),
 			bridgeSet = new Set(bridgePools.map((p) => p.poolId));
-		dataset.tokens = await listTokensForPools(tx, [...new Set([...candidateIds, ...bridgeSet])]);
+		dataset.tokens = (
+			await listTokensForPools(tx, [...new Set([...candidateIds, ...bridgeSet])])
+		).filter(isEvmToken);
 		dataset.hours = all.flatMap((h) => {
 			const pool = poolMap.get(h.poolId);
 			return pool ? [normalizeHour(h, pool)] : [];
 		});
-		dataset.coverage = await listScannedHours(tx, {
-			startUnix: Number(earliest.rows[0]?.earliest ?? start),
-			endUnixExclusive: end + H,
-		});
+		dataset.coverage = (
+			await listScannedHours(tx, {
+				startUnix: Number(earliest.rows[0]?.earliest ?? start),
+				endUnixExclusive: end + H,
+			})
+		).filter(isEvmScannedHour);
 		dataset.bridges = { pools: bridgePools, hours: all.filter((h) => bridgeSet.has(h.poolId)) };
 	} finally {
 		tx.close();

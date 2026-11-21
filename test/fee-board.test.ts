@@ -66,9 +66,9 @@ it("carries fee quality through SQLite, window composition, API and sorting, and
 		];
 		for (const item of cases) {
 			await db.execute({
-				sql: `INSERT INTO pools (pool_id,chain_id,protocol,token0,token1,fee_pips,tick_spacing,hooks,created_block,discovered_at)
-				VALUES (?,99901,'uniswap_v4',?,?,?,60,?,1,?)`,
-				args: [item.id, ZERO_ADDRESS, ZERO_ADDRESS, item.tier, item.hook, asOf],
+				sql: `INSERT INTO pools (chain_key,native_pool_id,pool_id,chain_id,protocol,token0,token1,fee_pips,tick_spacing,hooks,created_block,discovered_at)
+				VALUES ('elysium',?, ?,99901,'uniswap_v4',?,?,?,60,?,1,?)`,
+				args: [item.id, item.id, ZERO_ADDRESS, ZERO_ADDRESS, item.tier, item.hook, asOf],
 			});
 			await upsertWindow(db, {
 				poolId: item.id,
@@ -246,7 +246,8 @@ it("carries fee quality through SQLite, window composition, API and sorting, and
 			const stored = (await listWindowsInRange(db, start, start + 3600)).find(
 				(row) => row.poolId === "corrected",
 			);
-			if (!stored) throw new Error("missing fixture");
+			if (!stored || stored.representation === "official_usd")
+				throw new Error("missing native fixture");
 			const nextAsOf = "2026-11-12T08:15:00.000Z";
 			await upsertWindow(publication, {
 				...stored,
@@ -387,8 +388,8 @@ it("carries fee quality through SQLite, window composition, API and sorting, and
 				gapReason: null,
 				priceBoundaryVersion: 1,
 			});
-		await db.execute(`INSERT INTO pools (pool_id,chain_id,protocol,token0,token1,fee_pips,tick_spacing,created_block,discovered_at)
-			SELECT 'closed-v3',chain_id,'uniswap_v3',token0,token1,fee_pips,tick_spacing,created_block,discovered_at FROM pools WHERE pool_id='corrected'`);
+		await db.execute(`INSERT INTO pools (chain_key,native_pool_id,pool_id,chain_id,protocol,token0,token1,fee_pips,tick_spacing,created_block,discovered_at)
+			SELECT chain_key,'closed-v3','closed-v3',chain_id,'uniswap_v3',token0,token1,fee_pips,tick_spacing,created_block,discovered_at FROM pools WHERE pool_id='corrected'`);
 		for (const window of await listWindowsInRange(db, start - 3600, start + 3600))
 			if (window.poolId === "corrected") await upsertWindow(db, { ...window, poolId: "closed-v3" });
 		await upsertScannedHour(db, {

@@ -23,7 +23,10 @@ export function venueAdapterBinding(chain: string, protocol: string): VenueAdapt
 /** Only enabled ready adapters may refresh. Placeholders must never be included. */
 export function refreshableVenueBindings(): readonly VenueAdapter[] {
 	return VENUE_ADAPTERS.filter(
-		(adapter) => adapter.kind === "ready" && adapter.status === VENUE_STATUS_ENABLED,
+		(adapter) =>
+			adapter.kind === "ready" &&
+			adapter.status === VENUE_STATUS_ENABLED &&
+			adapter.ingest !== "not_started",
 	);
 }
 
@@ -42,7 +45,10 @@ export function assertRegistryMatchesCatalog(): void {
 		if (adapter.ingest !== adapter.policy.ingest) {
 			throw new Error(`适配器与政策 ingest 不一致：${venue.chain}/${venue.protocol}`);
 		}
-		if (venue.status === VENUE_STATUS_ENABLED && adapter.kind !== "ready") {
+		if (
+			venue.status === VENUE_STATUS_ENABLED &&
+			(adapter.kind !== "ready" || adapter.ingest === "not_started")
+		) {
 			throw new Error(`已启用场所必须是 ready 适配器：${venue.chain}/${venue.protocol}`);
 		}
 		if (venue.status === VENUE_STATUS_LISTED && adapter.kind !== "placeholder") {

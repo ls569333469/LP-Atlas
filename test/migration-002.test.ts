@@ -110,6 +110,7 @@ describe("migration 002_venue_keys", () => {
 
 		const tokenCols = await db.execute("PRAGMA table_info(tokens)");
 		expect(tokenCols.rows.map((row) => String(row.name))).toEqual([
+			"chain_key",
 			"chain_id",
 			"address",
 			"symbol",
@@ -132,6 +133,7 @@ describe("migration 002_venue_keys", () => {
 			"011_catalog_incremental_indexes.sql",
 			"012_usd_valuation.sql",
 			"013_usd_repair_deferrals.sql",
+			"014_chain_identity.sql",
 		]);
 		const venueIndex = await db.execute("PRAGMA index_info(idx_pools_chain_protocol)");
 		expect(venueIndex.rows.map((row) => String(row.name))).toEqual(["chain_id", "protocol"]);

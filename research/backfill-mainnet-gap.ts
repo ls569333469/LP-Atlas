@@ -50,7 +50,12 @@ import {
 	upsertToken,
 	upsertWindow,
 } from "../src/store/repositories.ts";
-import type { StoredPool, StoredScannedHour, StoredWindow } from "../src/store/types.ts";
+import type {
+	StoredEvmPool as StoredPool,
+	StoredEvmScannedHour as StoredScannedHour,
+	StoredNativeWindow as StoredWindow,
+} from "../src/store/types.ts";
+import { isEvmPool, isEvmToken, isNativeWindow } from "../src/store/types.ts";
 import { type Dataset, normalizeHour, qualifies } from "./engine.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -242,7 +247,7 @@ try {
 		console.log(JSON.stringify({ phase: "discover", ...progress.discover }));
 	}
 
-	const allPools = await listPools(db);
+	const allPools = (await listPools(db)).filter(isEvmPool);
 	const v3Pools = allPools.filter((p) => p.protocol === "uniswap_v3" && p.poolAddress);
 	const v4Pools = allPools.filter((p) => p.protocol === "uniswap_v4");
 	const pricingV4 = v4Pools.filter((p) => isPricingAnchor(p.token0, p.token1));
@@ -628,10 +633,12 @@ try {
 	const frozen = JSON.parse(
 		await fs.readFile(path.join(outDir, "dataset.json"), "utf8"),
 	) as Dataset;
-	const gapWindows = await listWindowsInRange(db, GAP_START, GAP_END);
+	const gapWindows = (await listWindowsInRange(db, GAP_START, GAP_END)).filter(isNativeWindow);
 	const gapPoolIds = [...new Set(gapWindows.map((h) => h.poolId))];
-	const gapPools = (await listPools(db)).filter((p) => gapPoolIds.includes(p.poolId));
-	const gapTokens = await listTokensForPools(db, gapPoolIds);
+	const gapPools = (await listPools(db))
+		.filter(isEvmPool)
+		.filter((p) => gapPoolIds.includes(p.poolId));
+	const gapTokens = (await listTokensForPools(db, gapPoolIds)).filter(isEvmToken);
 	const poolMap = new Map([...frozen.pools, ...gapPools].map((p) => [p.poolId, p]));
 	const tokenMap = new Map(
 		[...frozen.tokens, ...gapTokens].map((t) => [`${t.chainId}:${t.address.toLowerCase()}`, t]),
@@ -643,7 +650,7 @@ try {
 				complete, from_block AS fromBlock, to_block AS toBlock, as_of AS asOf, gap_reason AS gapReason,
 				state_block_number AS stateBlockNumber, price_boundary_version AS priceBoundaryVersion,
 				usd_bridge_version AS usdBridgeVersion
-				FROM scanned_hours WHERE window_start >= ? AND window_start < ?`,
+				FROM scanned_hours WHERE chain_id IS NOT NULL AND coverage_scope='venue' AND window_start >= ? AND window_start < ?`,
 			args: [GAP_START, GAP_END],
 		})
 	).rows.map((row) => ({

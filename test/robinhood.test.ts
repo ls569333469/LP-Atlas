@@ -126,8 +126,8 @@ it("isolates identical pool IDs and chain cutoffs through SQLite, all windows an
 			const asOf = new Date((start + 1800) * 1000).toISOString();
 			const poolId = chainId === 99901 ? raw : `4663:uniswap_v4:${raw}`;
 			await db.execute({
-				sql: `INSERT INTO pools(pool_id,chain_id,protocol,token0,token1,fee_pips,tick_spacing,hooks,created_block,discovered_at) VALUES (?,?,'uniswap_v4',?,?,10000,60,?,1,?)`,
-				args: [poolId, chainId, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, asOf],
+				sql: `INSERT INTO pools(chain_key,native_pool_id,pool_id,chain_id,protocol,token0,token1,fee_pips,tick_spacing,hooks,created_block,discovered_at) VALUES (?,?,?,?,'uniswap_v4',?,?,10000,60,?,1,?)`,
+				args: [chain, raw, poolId, chainId, ZERO_ADDRESS, ZERO_ADDRESS, ZERO_ADDRESS, asOf],
 			});
 			const run = await insertRefreshRun(db, {
 				startedAt: asOf,
