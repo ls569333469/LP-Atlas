@@ -1,0 +1,48 @@
+{
+	"sdk": "@solana/web3.js@1.98.4",
+	"url": "https://unpkg.com/@solana/web3.js@1.98.4/lib/index.iife.js",
+	"sha256": "13b62cadd4692cb0904f1672dfa9e82729fd23c16c54d01ae6536322b37c4f22",
+	"vectors": [
+		{
+			"address": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+			"valid": true,
+			"bytes": 32,
+			"canonical": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6"
+		},
+		{
+			"address": "5rcf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+			"valid": true,
+			"bytes": 32,
+			"canonical": "5rcf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6"
+		},
+		{
+			"address": "So11111111111111111111111111111111111111112",
+			"valid": true,
+			"bytes": 32,
+			"canonical": "So11111111111111111111111111111111111111112"
+		},
+		{
+			"address": "11111111111111111111111111111111",
+			"valid": true,
+			"bytes": 32,
+			"canonical": "11111111111111111111111111111111"
+		},
+		{
+			"address": "00000000000000000000000000000000000000000000",
+			"valid": false
+		},
+		{
+			"address": "1111111111111111111111111111111",
+			"valid": false
+		},
+		{
+			"address": "111111111111111111111111111111111",
+			"valid": false
+		},
+		{
+			"address": "HViaGW8HEN7XCPuiR2TSMPgkV8E73vXZttW7mAxM1rWU",
+			"valid": true,
+			"offCurve": true
+		}
+	]
+}

@@ -1,0 +1,87 @@
+{
+	"address": "7qZPiJ2Lvwh9DV9gUBH2EwConBE3RUrAvGRjpN8vTjtT",
+	"name": "TTWO-SOL",
+	"token_x": {
+		"address": "TTWofwAge91oFhZs7kpQdyrVRkmevgM88xijGvQFbKo",
+		"name": "Take-Two Interactive Software - Backpack Securities",
+		"symbol": "TTWO",
+		"decimals": 6,
+		"is_verified": true,
+		"holders": 242483,
+		"freeze_authority_disabled": false,
+		"total_supply": 25383.492306,
+		"price": 213.23090452976564,
+		"market_cap": 5412545.024532727
+	},
+	"token_y": {
+		"address": "So11111111111111111111111111111111111111112",
+		"name": "Wrapped SOL",
+		"symbol": "SOL",
+		"decimals": 9,
+		"is_verified": true,
+		"holders": 3820662,
+		"freeze_authority_disabled": true,
+		"total_supply": 636639246.9984534,
+		"price": 70.23837912463775,
+		"market_cap": 41439498311.81132
+	},
+	"reserve_x": "CxXa8ZsqnjpiuKva5WyBm7XvSct3iWznNMGZZmz8kG7T",
+	"reserve_y": "3SGaFr24esDAXhC5GB3iKrD37ZtzQrXjfngkeaz1vRYL",
+	"token_x_amount": 455.20924,
+	"token_y_amount": 2887.648223344,
+	"created_at": 1792071796000,
+	"reward_mint_x": "11111111111111111111111111111111",
+	"reward_mint_y": "11111111111111111111111111111111",
+	"pool_config": {
+		"bin_step": 10,
+		"base_fee_pct": 0.1,
+		"max_fee_pct": 0.0,
+		"protocol_fee_pct": 10.0,
+		"collect_fee_mode": 0,
+		"pair_type": 3
+	},
+	"dynamic_fee_pct": 1.6e-6,
+	"tvl": 299663.8147689637,
+	"current_price": 3.0259887331561632,
+	"apr": 2.620660003873022,
+	"apy": 1260865.7009802258,
+	"has_farm": false,
+	"farm_apr": 0.0,
+	"farm_apy": 0.0,
+	"volume": {
+		"30m": 62066.62425841594,
+		"1h": 112216.4479613718,
+		"2h": 213368.108564086,
+		"4h": 532056.7480254832,
+		"12h": 1518625.950734136,
+		"24h": 6913258.22244173
+	},
+	"fees": {
+		"30m": 56.45494992219589,
+		"1h": 102.60400471662646,
+		"2h": 194.4116839712767,
+		"4h": 490.8246012602081,
+		"12h": 1403.610131792133,
+		"24h": 7853.169739730371
+	},
+	"protocol_fees": {
+		"30m": 6.026285772763566,
+		"1h": 11.001402949997864,
+		"2h": 20.950400501840004,
+		"4h": 52.54601438913232,
+		"12h": 149.49366965762863,
+		"24h": 830.7807853915506
+	},
+	"fee_tvl_ratio": {
+		"30m": 0.018839428432732792,
+		"1h": 0.03423970451545262,
+		"2h": 0.06487659650237222,
+		"4h": 0.16379174830922663,
+		"12h": 0.4683949354626935,
+		"24h": 2.6206600038730223
+	},
+	"cumulative_metrics": { "volume": 243162452.3955243, "fees": 229885.42596716457 },
+	"is_blacklisted": false,
+	"launchpad": "",
+	"tags": []
+}

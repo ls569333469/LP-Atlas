@@ -371,7 +371,8 @@ export async function upsertWindow(
 			WHERE window_aggregates.representation=excluded.representation AND
 			(window_aggregates.representation='native_amounts' OR
 			 (json_extract(window_aggregates.source_observation,'$.source')=json_extract(excluded.source_observation,'$.source')
-			  AND json_extract(window_aggregates.source_observation,'$.schemaVersion')=json_extract(excluded.source_observation,'$.schemaVersion')))
+			  AND json_extract(window_aggregates.source_observation,'$.schemaVersion')=json_extract(excluded.source_observation,'$.schemaVersion')
+			  AND julianday(COALESCE(json_extract(window_aggregates.source_observation,'$.requestStartedAt'),json_extract(window_aggregates.source_observation,'$.observedAt'))) <= julianday(COALESCE(json_extract(excluded.source_observation,'$.requestStartedAt'),json_extract(excluded.source_observation,'$.observedAt')))))
 		`,
 		args: [
 			window.poolId,
@@ -821,7 +822,7 @@ export async function upsertScannedHour(
 			throw new Error("Pool-scoped coverage identity mismatch");
 	}
 
-	await db.execute({
+	const result = await db.execute({
 		sql: `
 			INSERT INTO scanned_hours (
 				chain_key, chain_id, protocol, window_start, window_end, complete,
@@ -840,6 +841,10 @@ export async function upsertScannedHour(
 				usd_bridge_version = excluded.usd_bridge_version,
 				usd_valuation_version = excluded.usd_valuation_version,
 				usd_quote_json = excluded.usd_quote_json, source_observation = excluded.source_observation
+			WHERE excluded.chain_id IS NOT NULL OR
+			 (json_extract(scanned_hours.source_observation,'$.source')=json_extract(excluded.source_observation,'$.source')
+			  AND json_extract(scanned_hours.source_observation,'$.schemaVersion')=json_extract(excluded.source_observation,'$.schemaVersion')
+			  AND julianday(COALESCE(json_extract(scanned_hours.source_observation,'$.requestStartedAt'),json_extract(scanned_hours.source_observation,'$.observedAt'))) <= julianday(COALESCE(json_extract(excluded.source_observation,'$.requestStartedAt'),json_extract(excluded.source_observation,'$.observedAt'))))
 		`,
 		args: [
 			storedChain(hour).chain,
@@ -861,6 +866,8 @@ export async function upsertScannedHour(
 			hour.chainId === null ? JSON.stringify(hour.sourceObservation) : null,
 		],
 	});
+	if (result.rowsAffected !== 1)
+		throw new Error("Stale coverage or source/schema transition requires an explicit policy");
 }
 
 export function listScannedHours(

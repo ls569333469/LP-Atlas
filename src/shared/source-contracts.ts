@@ -3,6 +3,8 @@ export type SourceObservation = {
 	source: string;
 	schemaVersion: string;
 	observedAt: string;
+	/** Local request start orders concurrent responses; it is not the source data cutoff. */
+	requestStartedAt?: string;
 	dataCutoff: string | null;
 	finality: "unverified" | "finalized";
 	feeAttribution: "unverified" | "ordinary_lp_verified";
@@ -39,10 +41,19 @@ export function sourceObservation(value: unknown): SourceObservation {
 	if (typeof v.dataCutoff === "string" && Date.parse(v.dataCutoff) > Date.parse(v.observedAt)) {
 		throw new Error("Source cutoff is later than observation");
 	}
+	if (
+		v.requestStartedAt !== undefined &&
+		(typeof v.requestStartedAt !== "string" ||
+			!Number.isFinite(Date.parse(v.requestStartedAt)) ||
+			Date.parse(v.requestStartedAt) > Date.parse(v.observedAt))
+	) {
+		throw new Error("Invalid source request start");
+	}
 	return {
 		source: v.source,
 		schemaVersion: v.schemaVersion,
 		observedAt: v.observedAt,
+		...(v.requestStartedAt === undefined ? {} : { requestStartedAt: v.requestStartedAt as string }),
 		dataCutoff: v.dataCutoff as string | null,
 		finality: v.finality,
 		feeAttribution: v.feeAttribution,

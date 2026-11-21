@@ -1,0 +1,105 @@
+{
+	"purpose": "Bounded official API responses, candidate data only; not proof of fee attribution or source finality",
+	"requests": [
+		{
+			"name": "discovery",
+			"url": "https://dlmm.datapi.meteora.ag/pools?page=1&page_size=2",
+			"observedAt": "2026-11-21T15:53:09.987Z",
+			"status": 200,
+			"bytes": 4088,
+			"responseSha256": "bf534862e37ab485d0abc38917ded686925e2a65655c95974e9f680fe6f1041c",
+			"fixtureSha256": "128de47178f4c0d4d5e4422ee27b7850c0a0e8b7bc807cf2e94f914cfe243bd4"
+		},
+		{
+			"name": "pool-0",
+			"url": "https://dlmm.datapi.meteora.ag/pools/5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+			"observedAt": "2026-11-21T15:53:10.373Z",
+			"status": 200,
+			"bytes": 2013,
+			"responseSha256": "27159dffeaee1abbe5ca899f079e4f5cfc3d64d4d9316d73735e1d3ee454d1b9",
+			"fixtureSha256": "9170a128386df05c5eae0172ecc2865a870bc6f47efa1d6c8769ce157e9a2d7c"
+		},
+		{
+			"name": "history-0-minus1",
+			"url": "https://dlmm.datapi.meteora.ag/pools/5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6/volume/history?timeframe=1h&start_time=1795143600&end_time=1795147199",
+			"observedAt": "2026-11-21T15:53:10.530Z",
+			"status": 200,
+			"bytes": 228,
+			"responseSha256": "4245d71973afec7c2726f72c3d1de1e929ca3c3e133b0ea109a7f18306110522",
+			"fixtureSha256": "c70ab474690ca524af879bfc5e8037a201edbc3a59e5bb020bc321cecb86d76d"
+		},
+		{
+			"name": "history-0-exact",
+			"url": "https://dlmm.datapi.meteora.ag/pools/5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6/volume/history?timeframe=1h&start_time=1795143600&end_time=1795147200",
+			"observedAt": "2026-11-21T15:53:10.710Z",
+			"status": 200,
+			"bytes": 342,
+			"responseSha256": "2a71dafa074a9f11e6cf3bf0dc87f3fbbdcb79d7acd7ae8cd33823d282869d14",
+			"fixtureSha256": "d8eabee3fb49c465f63d18b9c7a1cc1f1c8b95d993affb645a5ee04fcb4e38b4"
+		},
+		{
+			"name": "history-0-padded",
+			"url": "https://dlmm.datapi.meteora.ag/pools/5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6/volume/history?timeframe=1h&start_time=1795140000&end_time=1795150800",
+			"observedAt": "2026-11-21T15:53:10.912Z",
+			"status": 200,
+			"bytes": 656,
+			"responseSha256": "ce12fb09c0546c39431a1702fbf9d00e2b8c2342f8b64f7efeefdf22886eef13",
+			"fixtureSha256": "86d3cafdbc9db28d98173c43afed9f0bff943390aca63a521f34b4717cb73be2"
+		},
+		{
+			"name": "history-0-96h",
+			"url": "https://dlmm.datapi.meteora.ag/pools/5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6/volume/history?timeframe=1h&start_time=1794805200&end_time=1795150800",
+			"observedAt": "2026-11-21T15:53:11.095Z",
+			"status": 200,
+			"bytes": 15152,
+			"responseSha256": "3ccaf96d6bca1bd0a065ad0dc430bad16c4f055afc400308138a668e7c85a88d",
+			"fixtureSha256": "018af0076a7e27789152dcd7f30aac5e01afbaa96048c427987fd58d69c582d0"
+		},
+		{
+			"name": "pool-1",
+			"url": "https://dlmm.datapi.meteora.ag/pools/7qZPiJ2Lvwh9DV9gUBH2EwConBE3RUrAvGRjpN8vTjtT",
+			"observedAt": "2026-11-21T15:53:11.314Z",
+			"status": 200,
+			"bytes": 2036,
+			"responseSha256": "b1ecdbcedba1761efced2ded598dd6aa9e623ee7efb3f842824e901d125d40ff",
+			"fixtureSha256": "5753effd1b6284bc4f9efa965324620f990f29ec80163cbe019a3ba72746f32f"
+		},
+		{
+			"name": "history-1-minus1",
+			"url": "https://dlmm.datapi.meteora.ag/pools/7qZPiJ2Lvwh9DV9gUBH2EwConBE3RUrAvGRjpN8vTjtT/volume/history?timeframe=1h&start_time=1795143600&end_time=1795147199",
+			"observedAt": "2026-11-21T15:53:11.477Z",
+			"status": 200,
+			"bytes": 232,
+			"responseSha256": "d8019fa085015c82f397973216e3189472dc8fba0a3a19c6f5c83f1cd1256418",
+			"fixtureSha256": "051729d63052f2097a6f10915d4fa30ad66c1ca76a8ed363e9d4ec5d8e60942f"
+		},
+		{
+			"name": "history-1-exact",
+			"url": "https://dlmm.datapi.meteora.ag/pools/7qZPiJ2Lvwh9DV9gUBH2EwConBE3RUrAvGRjpN8vTjtT/volume/history?timeframe=1h&start_time=1795143600&end_time=1795147200",
+			"observedAt": "2026-11-21T15:53:11.675Z",
+			"status": 200,
+			"bytes": 344,
+			"responseSha256": "9b47fc6c07c686bbd36727494484e95dd6007c7adb680e39bc941bb3a01f721d",
+			"fixtureSha256": "54eb3a47b0e8412b3083053d35eb79996ae86761a3e7ae979e9b49ce62d22dcc"
+		},
+		{
+			"name": "history-1-padded",
+			"url": "https://dlmm.datapi.meteora.ag/pools/7qZPiJ2Lvwh9DV9gUBH2EwConBE3RUrAvGRjpN8vTjtT/volume/history?timeframe=1h&start_time=1795140000&end_time=1795150800",
+			"observedAt": "2026-11-21T15:53:11.889Z",
+			"status": 200,
+			"bytes": 701,
+			"responseSha256": "afb935d1ab2ec5dc8824b58b73bb3eab82e24617a77a8e29190f79c7a126608d",
+			"fixtureSha256": "dd967397058aec56d7dbc955f8ad29d262d4d382c687584a51abceb0fc1f00e6"
+		},
+		{
+			"name": "history-1-96h",
+			"url": "https://dlmm.datapi.meteora.ag/pools/7qZPiJ2Lvwh9DV9gUBH2EwConBE3RUrAvGRjpN8vTjtT/volume/history?timeframe=1h&start_time=1794805200&end_time=1795150800",
+			"observedAt": "2026-11-21T15:53:12.094Z",
+			"status": 200,
+			"bytes": 15180,
+			"responseSha256": "e0097fe1a9dc5fa7e458740c9cd48274235698fdff39160a08e17b92fda7110a",
+			"fixtureSha256": "41d7326cee91c11033bdd7f2d762ec7db58a6a9deb45813c972a9ff50aa4178a"
+		}
+	],
+	"fixtureEncoding": "JSON formatted for repository standards; responseSha256 refers to original HTTP bytes retained in local evidence cache"
+}

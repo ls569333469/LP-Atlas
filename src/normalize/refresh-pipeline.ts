@@ -50,8 +50,12 @@ import {
 	upsertWindow,
 } from "../store/repositories.ts";
 import type {
+	StoredScannedHour as AnyScannedHour,
+	StoredWindow as AnyStoredWindow,
+	StoredOfficialWindow,
 	StoredEvmPool as StoredPool,
 	StoredEvmScannedHour as StoredScannedHour,
+	StoredSolanaScannedHour,
 	StoredNativeWindow as StoredWindow,
 } from "../store/types.ts";
 import { isPricingAnchor, loadCatalog } from "./catalog-cache.ts";
@@ -1434,19 +1438,34 @@ export async function runRefreshPipeline(input: {
 	}
 }
 
-export async function commitHourCheckpoint(
+type HourCheckpointPublication = {
+	chain: string;
+	runId: number;
+	savedHours: StoredScannedHour[];
+	usdDeferrals?: Parameters<typeof deferUsdRepair>[1][];
+	gaps: string[];
+	warnings: string[];
+};
+
+export function commitHourCheckpoint(
 	db: AppDatabase,
 	pendingWindows: StoredWindow[],
 	pendingHours: StoredScannedHour[],
 	startUnix: number,
-	publication?: {
-		chain: string;
-		runId: number;
-		savedHours: StoredScannedHour[];
-		usdDeferrals?: Parameters<typeof deferUsdRepair>[1][];
-		gaps: string[];
-		warnings: string[];
-	},
+	publication?: HourCheckpointPublication,
+): Promise<boolean>;
+export function commitHourCheckpoint(
+	db: AppDatabase,
+	pendingWindows: StoredOfficialWindow[],
+	pendingHours: StoredSolanaScannedHour[],
+	startUnix: number,
+): Promise<boolean>;
+export async function commitHourCheckpoint(
+	db: AppDatabase,
+	pendingWindows: AnyStoredWindow[],
+	pendingHours: AnyScannedHour[],
+	startUnix: number,
+	publication?: HourCheckpointPublication,
 ): Promise<boolean> {
 	const windows = pendingWindows.filter((row) => row.windowStart === startUnix);
 	const hours = pendingHours.filter((row) => row.windowStart === startUnix);
@@ -1455,6 +1474,7 @@ export async function commitHourCheckpoint(
 	try {
 		if (publication) {
 			for (const hour of hours) {
+				if (hour.chainId === null) throw new Error("Non-EVM publication requires the S3 contract");
 				const current = await listScannedHours(tx, {
 					chainId: hour.chainId,
 					protocol: hour.protocol,

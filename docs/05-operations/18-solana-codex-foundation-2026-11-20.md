@@ -452,3 +452,62 @@ Codex 历史 Windows 结果为250通过/8清理失败，并非本轮复现。其
 范围仅S0/S1测试与既有格式合同，不部署、不迁移运行库、不启用S2。ffa950a复验266/269，仍不能作为Windows验收通过。
 
 已独立复现：触发器RAISE异常被保留时，关闭连接并两次GC仍EPERM；读取异常及cause的惰性stack后，同样两次GC即可删除。故障用例须在保留原错和断言前提下展开堆栈，不能靠延长同步删除等待掩盖句柄引用。GC参数测试通过显式注入回收函数测试，不重定义不可配置的全局gc。仅对静态检查实际报错文件核对LF行尾并保留本机修改，不全仓格式重写。修复后Windows最终全量45文件/270项通过（含真实活连接清理失败负向检查），默认静态检查与三组类型检查通过（72 warnings、50 infos），API/Web隔离目录构建通过。S0/S1代码及离线验证完成，生产部署/运行库迁移未执行，S2仍受阻；详见实施交接“Codex Windows 最终验证”及缓存 node_modules/.cache/lp-atlas-s1-codex-final/。
+
+## S2 官方源复现与实现合同（2026-11-22，Asia/Shanghai）
+
+用户已授权按方案18继续S2。只在既有DLMM场所模块、官方索引HTTP辅助、来源合同和小时事务内增量实施；不启用Solana、不进入S3、不部署或读改运行库。本节更新第2节及第10节的证据归属，不把未验证的源语义改成通过。
+
+### 独立证据
+
+本轮Windows对两个原代表池、原时间范围重发11次有界官方GET，池列表仅第一页2池，未遍历全站；每次18秒、900KB上限。两池均返回97标签，过滤到四天范围得96候选小时。原SOL-USDC样本11:00标签：end减1秒为4777.67320142552美元，end整点为1064262.3261313129，作为内部桶为1064262.3261313157。长尾样本同样有显著端点差异。此前“Codex未独立复现”对这两个边界/标签样本已不适用；这仍不是finality或金额覆盖验收。
+
+回归fixture与请求URL/响应原字节摘要见`test/fixtures/meteora/`；JSON按仓库格式落盘，原HTTP字节SHA与格式化fixture SHA分别记录。官方OpenAPI仍只描述fees/protocol_fees，未给普通MM LP净收益定义，也未给真实源截止、finalized slot、历史TVL、原币或交易数。官方公式区分MM LP、LO参与者、protocol与host，不能仅依字段名或比值认定API净费用。文档URL及正文SHA见official-source-contract.json。
+
+T01已用发布版`@solana/web3.js@1.98.4`独立执行PublicKey及findProgramAddressSync：两个大小写不同地址均为不同合法32字节身份，真实off-curve PDA可接受，非法字母与31/33字节拒绝。SDK bundle仅在本机证据缓存执行，未加入产品依赖；版本/URL/SHA及向量见sdk-address-vectors.json。本期不因此宣称账户owner/Token2022扩展已全面核实。
+
+另对公开主网RPC做两次当前getMultipleAccounts小样本读取：两池owner为DLMM程序，WSOL/USDC样本mint owner为SPL Token，池discriminator匹配IDL；完整当前样本见current-accounts.json。仅public_temporary当前状态证据，不是历史快照或生产节点验收，不推断为四天各小时的账户状态。
+
+### S2代码合同
+
+- 仅显式读取一个目录页或最多96小时；HTTP辅助复用official-index.ts，单次独立18秒截止覆盖响应体，900KB限制，错误立即返回，不自动重试/全目录展开。生产预算、限流策略及调度接入仍属S3，未设置为无限请求。
+- 请求起止为整点，end取精确边界；校验返回范围、1h标签、数字及身份，丢弃末端桶，等值重复去重、冲突重复拒绝、缺小时明确列出，不造0。不把整点请求规则等同于小时已经封口。
+- 元数据保留binStep与collectFeeMode，不塞入tickSpacing或静态费率；API当前TVL仅单列currentTvlUsd，账户核验状态仍unverified，未写成已验证历史元数据。
+- 历史只转换为official_usd候选；普通LP费用、原币、交易数、历史TVL和价格边界为NULL，complete=false、finality/feeAttribution=unverified、dataCutoff=null。不得按reported fees减protocol或按费率乘成交量，不审批官方USD替代方案13估值。未接默认刷新/API/看板，不改变原1H准入。
+- 复用既有commitHourCheckpoint事务提交候选窗口/池级coverage，不另建表、队列或扫描服务；不发布非EVM链版本（S3合同未做）。写入失败回滚，待提交数组保留；重复累计用覆盖，不相加。
+- 官方累计/coverage按同来源同schema版本覆盖；新增可选requestStartedAt只用于本地请求先后排序，不能充当源cutoff。旧格式回退observedAt，旧请求晚返回不得覆盖新请求；真实源修订仍需上游revision/finality政策，不能由本地先后推定权威。EVM原币更新与原游标规则不变。
+
+费用归属、完整源水位、历史状态来源及官方USD口径仍是未解除的金额接入门。已向用户询问是否已有Solana历史交易及小时边界状态供应商；不读取.env、不自行迁移节点。本轮具体进度以05-roadmap顶部S2清单为准。
+
+### 数据源调查（2026-11-22，官方现行资料）
+
+用户回复目前没有Solana历史供应商，要求先调查，并同步请Grok研究。本次未购买、登录或配置供应商，也不把候选源写成已确认选型。以下是文档能力核验，不是付费接口实测验收。
+
+| 候选 | 官方明确能力 | 对本项目的判断 |
+| --- | --- | --- |
+| Helius Historical Account API（Beta） | getHistoricalAccountInfo按slot或slot+transactionIndex返回任意账户历史状态；覆盖从444959999（2026-09-07）起；Business及以上；Beta期间0 credits/调用，独立100 req/s、burst 100。配合getTransactionsForAddress取历史交易。 | 当前最直接匹配四天交易+池/储备/bin账户历史状态的候选。必须先取得授权套餐与密钥，实测DLMM账户布局、时间边界、空账户、覆盖与索引延迟。未获授权不实现供应商绑定。 |
+| Triton Fumarole | 持久gRPC、四天滚动保留、至少一次交付、断线按服务端游标续传；账号更新/交易可筛选；from_slot被忽略，跨区域游标不复制。 | 可作为持续采集与断线补扫候选；“四天保留”不自动证明新订阅可读任意历史小时全部未变账户，更不等于历史accountInfo。初始快照、首次冷补范围和价格待供应商确认。 |
+| Helius LaserStream gRPC | 约48小时replay；更早约20分钟之外来自finalized历史块；按流量计费。 | 单独不能满足96小时冷补。若用，仍需历史账户/交易服务补足，不为五分钟采集默认增加gRPC。 |
+| Shyft Yellowstone标准replay | 文档明示最早约当前前150 slots。 | 该具体replay能力不足四天；不泛化为Shyft其他产品绝不支持历史状态。 |
+| 普通Solana/QuickNode/Alchemy/Chainstack标准RPC | 标准getAccountInfo仍是当前状态；交易archive与状态archive分开。QuickNode索引可见subscribeReplayInfo，但本轮未取得其历史账户产品明确合同。 | 不能据“archive”购买或推定历史池状态可用。未取得产品专用历史状态文档的供应商保持未证实，而不是判定其全产品不支持。 |
+
+Helius官方当前Business价格499美元/月，100M credits/月，标准RPC 200 req/s；历史账户接口单独100 req/s，并非随200叠加为300。Beta历史账户免费计点不等于套餐免费，也不是永久价格。getTransactionsForAddress full模式按每100条10 credits、向上取整、最低10，单次至多1000条；标准archive调用通常1 credit。Business/Professional默认启用超额autoscaling，应在选型/开户时核对支出设置，不在程序里假设预算无限。无密钥历史账户探测返回401，只证明当前未授权，未验证返回布局或性能。
+
+容量只给下界，不承诺性能：若每池每小时至少读池账户+两储备，共K=3、P=100，首次96小时至少28800次历史账户调用，100 req/s下仅限速理论下界288秒；P=1000为288000次、2880秒。实际还可能读bin arrays、mint/Token2022历史扩展及费用配置，需网络/解码/交易/重试时间，K=3不是充分TVL证明。正常五分钟只续接新交易和变化账户，不每轮重拉四天；对账户/小时/目标slot去重。未测最终候选池数和交易量前，不给全站费用、内存、10–20秒或冷补时长承诺。
+
+建议先把Helius列为小样本验证首选，与Grok结果交叉复核，再由用户确认预算/选型。不迁移现有EVM RPC，不因候选源存在就跳过费用、完整覆盖与小时边界验证。若不接受该套餐，继续询价支持历史账户状态的产品，或另审“从当前开始自存状态、逐小时暖满四天”的产品取舍；后一方案不能伪称已补历史。
+
+官方资料（本机已成功读取正文，原文及SHA可在本轮缓存核对）：
+
+- Helius历史账户：https://www.helius.dev/docs/rpc/historical-accounts.md
+- getHistoricalAccountInfo合同：https://www.helius.dev/docs/api-reference/rpc/http/gethistoricalaccountinfo.md
+- 交易与分页：https://www.helius.dev/docs/rpc/gettransactionsforaddress.md
+- 套餐/计点/限速：https://www.helius.dev/docs/billing/plans.md 、https://www.helius.dev/docs/billing/credits.md 、https://www.helius.dev/docs/billing/rate-limits.md
+- Helius replay：https://www.helius.dev/docs/laserstream/historical-replay.md
+- Triton Fumarole：https://docs.triton.one/solana/real-time-streaming/fumarole-persistent-streams.md
+- Shyft replay：https://docs.shyft.to/solana-yellowstone-grpc/docs/getting-started/replaying-slots-with-grpc.md
+
+### 本轮验证与未完成
+
+Windows Node v24.11.1：全量46文件/291项通过（新增21项），默认npm run check退出0，三组类型检查通过；Biome仍72 warnings、50 infos。API tsc及Web Vite构建通过，输出仅node_modules/.cache/lp-atlas-s2-validation/build，未覆盖运行dist。日志在同目录full.log、check.log、build-web.log。真实HTTP范围只限上述官方小样本及公开账户读取，不把fixture检查当付费源实测。
+
+S2仍未完成：Datapi费用归属/源水位未知；历史账户候选仅文档匹配，尚无已授权生产数据源及实测；历史字段、事件完整覆盖、协议归一/费用对账、Token2022及真实修订策略尚未通过。现有代码是受闸门保护的候选适配及事务能力，不是已完成采集。不接S3、不部署、不写运行库、不改五分钟采集和已启用两链。

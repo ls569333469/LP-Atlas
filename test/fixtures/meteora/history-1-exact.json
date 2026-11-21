@@ -1,0 +1,21 @@
+{
+	"start_time": 1795143600,
+	"end_time": 1795147200,
+	"timeframe": "1h",
+	"data": [
+		{
+			"timestamp": 1795143600,
+			"timestamp_str": "2026-11-20T03:00:00+00:00",
+			"volume": 1687697.2982648714,
+			"fees": 1535.7718295078014,
+			"protocol_fees": 160.52517752021288
+		},
+		{
+			"timestamp": 1795147200,
+			"timestamp_str": "2026-11-20T04:00:00+00:00",
+			"volume": 0.0,
+			"fees": 0.0,
+			"protocol_fees": 0.0
+		}
+	]
+}

@@ -14,6 +14,7 @@ export type OfficialIndexErrorCode =
 	| "missing_subgraph_id"
 	| "index_down"
 	| "index_rate_limited"
+	| "index_response"
 	| "index_graphql";
 
 export class OfficialIndexError extends Error {
@@ -23,6 +24,68 @@ export class OfficialIndexError extends Error {
 		super(message, options);
 		this.name = "OfficialIndexError";
 		this.code = code;
+	}
+}
+
+/** Bounded REST reads for official indexes; the deadline also covers the response body. */
+export async function queryOfficialJson(
+	url: URL,
+	options: { fetchImpl?: typeof fetch; timeoutMs?: number; maxBytes?: number } = {},
+): Promise<unknown> {
+	const controller = new AbortController();
+	const timeoutMs = options.timeoutMs ?? 18_000;
+	const maxBytes = options.maxBytes ?? 900_000;
+	if (
+		!Number.isFinite(timeoutMs) ||
+		timeoutMs <= 0 ||
+		!Number.isSafeInteger(maxBytes) ||
+		maxBytes <= 0
+	)
+		throw new Error("Invalid official index request budget");
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		const response = await (options.fetchImpl ?? fetch)(url, {
+			signal: controller.signal,
+			headers: { accept: "application/json" },
+			redirect: "error",
+		});
+		if (!response.ok) {
+			controller.abort();
+			throw new OfficialIndexError(
+				response.status === 429 ? "index_rate_limited" : "index_down",
+				`Official index HTTP ${response.status}`,
+			);
+		}
+		const reader = response.body?.getReader();
+		if (!reader) throw new OfficialIndexError("index_response", "Missing official index body");
+		const chunks: Uint8Array[] = [];
+		let bytes = 0;
+		try {
+			for (;;) {
+				const next = await reader.read();
+				if (next.done) break;
+				bytes += next.value.byteLength;
+				if (bytes > maxBytes) {
+					controller.abort();
+					throw new OfficialIndexError("index_response", "Official index response exceeds budget");
+				}
+				chunks.push(next.value);
+			}
+		} finally {
+			reader.releaseLock();
+		}
+		try {
+			return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+		} catch (cause) {
+			throw new OfficialIndexError("index_response", "Invalid official index JSON", { cause });
+		}
+	} catch (cause) {
+		if (cause instanceof OfficialIndexError) throw cause;
+		throw new OfficialIndexError("index_down", "Official index request failed or timed out", {
+			cause,
+		});
+	} finally {
+		clearTimeout(timer);
 	}
 }
 
