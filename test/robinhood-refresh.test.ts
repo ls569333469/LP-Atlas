@@ -195,7 +195,28 @@ it.each([
 				fromBlock: bigint;
 				toBlock: bigint;
 			}) => {
-				if (input.event.name !== "Swap") return [];
+				if (input.event.name !== "Swap") {
+					if (mode !== "normal") return [];
+					const v3 = input.event.name === "PoolCreated";
+					return [
+						{
+							address: input.address,
+							topics: encodeEventTopics({
+								abi: [input.event],
+								eventName: input.event.name,
+								args: v3
+									? { token0: token, token1: ROBINHOOD_USDG_ADDRESS, fee: 10000 }
+									: { id: raw4, currency0: token, currency1: ROBINHOOD_USDG_ADDRESS },
+							}),
+							data: encodeAbiParameters(
+								input.event.inputs.filter((item) => !item.indexed),
+								v3 ? [200, address] : [10000, 200, `0x${"0".repeat(40)}`, q96, 0],
+							),
+							blockNumber: input.toBlock,
+							logIndex: 0,
+						},
+					];
+				}
 				const v3 = input.address === undefined;
 				if (mode === "parallel" && v3 && input.toBlock === head) {
 					await waitForGate(`anchor:${head}`);
@@ -327,6 +348,15 @@ it.each([
 		if (mode === "interrupted") await expect(run).rejects.toThrow("fixture stop");
 		else {
 			await run;
+			if (mode === "normal") {
+				const discovered = (
+					await db.execute("SELECT chain_key,native_pool_id FROM pools ORDER BY protocol")
+				).rows;
+				expect(discovered).toEqual([
+					{ chain_key: "robinhood", native_pool_id: address },
+					{ chain_key: "robinhood", native_pool_id: raw4 },
+				]);
+			}
 			const finished = (
 				await db.execute(
 					"SELECT gaps, warnings, windows_built, duration_ms FROM refresh_runs ORDER BY id DESC LIMIT 1",

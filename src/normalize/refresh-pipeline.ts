@@ -19,6 +19,7 @@ import * as elysiumV4 from "../adapters/venues/elysium/uniswap-v4.ts";
 import * as robinhoodV3 from "../adapters/venues/robinhood/uniswap-v3.ts";
 import * as robinhoodV4 from "../adapters/venues/robinhood/uniswap-v4.ts";
 import { findChain, type VenuePoolCount } from "../shared/catalog.ts";
+import { chainRef } from "../shared/chain-ref.ts";
 import {
 	CHAIN_ID_ELYSIUM,
 	HOUR_SECONDS,
@@ -26,6 +27,9 @@ import {
 	ZERO_ADDRESS,
 } from "../shared/constants.ts";
 import { combineFeeStatuses, feeDataUsable } from "../shared/fee-quality.ts";
+import type { MeteoraPoolMetadata } from "../shared/meteora.ts";
+import { solanaPoolStorageKey } from "../shared/pool-identity.ts";
+import type { SourceObservation } from "../shared/source-contracts.ts";
 import type { UsdQuoteSource } from "../shared/usd-quotes.ts";
 import type { AppDatabase } from "../store/db.ts";
 import { getMeta, setMeta } from "../store/db.ts";
@@ -45,7 +49,10 @@ import {
 	listWindowPoolIds,
 	listWindowsForStarts,
 	updatePoolAges,
+	upsertMeteoraMetadata,
+	upsertPool,
 	upsertScannedHour,
+	upsertToken,
 	upsertTokens,
 	upsertWindow,
 } from "../store/repositories.ts";
@@ -1445,6 +1452,9 @@ type HourCheckpointPublication = {
 	usdDeferrals?: Parameters<typeof deferUsdRepair>[1][];
 	gaps: string[];
 	warnings: string[];
+	officialAsOf?: string;
+	officialObservation?: SourceObservation;
+	officialDirectory?: { pools: MeteoraPoolMetadata[]; asOf: string };
 };
 
 export function commitHourCheckpoint(
@@ -1459,6 +1469,7 @@ export function commitHourCheckpoint(
 	pendingWindows: StoredOfficialWindow[],
 	pendingHours: StoredSolanaScannedHour[],
 	startUnix: number,
+	publication?: HourCheckpointPublication,
 ): Promise<boolean>;
 export async function commitHourCheckpoint(
 	db: AppDatabase,
@@ -1469,12 +1480,68 @@ export async function commitHourCheckpoint(
 ): Promise<boolean> {
 	const windows = pendingWindows.filter((row) => row.windowStart === startUnix);
 	const hours = pendingHours.filter((row) => row.windowStart === startUnix);
-	if (windows.length === 0 && hours.length === 0) return false;
+	if (windows.length === 0 && hours.length === 0 && !publication?.officialDirectory) return false;
 	const tx = await db.transaction("write");
 	try {
+		if (publication?.officialDirectory) {
+			if (publication.chain !== "solana" || !publication.officialAsOf)
+				throw new Error("Official directory requires Solana publication");
+			const current = (
+				await tx.execute(
+					"SELECT official_discovery_as_of FROM chain_publications WHERE chain='solana'",
+				)
+			).rows[0];
+			if (
+				current?.official_discovery_as_of &&
+				Date.parse(String(current.official_discovery_as_of)) >
+					Date.parse(publication.officialDirectory.asOf)
+			)
+				throw new Error("Official directory response is older than publication");
+			for (const pool of publication.officialDirectory.pools) {
+				await upsertPool(
+					tx,
+					{
+						chain: "solana",
+						chainId: null,
+						evmChainId: null,
+						poolId: solanaPoolStorageKey("meteora_dlmm", pool.address),
+						nativePoolId: pool.address,
+						protocol: "meteora_dlmm",
+						token0: pool.tokenX.address,
+						token1: pool.tokenY.address,
+						feePips: null,
+						tickSpacing: null,
+						hooks: null,
+						poolAddress: pool.address,
+						createdBlock: null,
+						createdAtUnix: pool.createdAtUnix,
+					},
+					publication.officialDirectory.asOf,
+				);
+				for (const token of [pool.tokenX, pool.tokenY])
+					await upsertToken(tx, {
+						chain: "solana",
+						chainId: null,
+						evmChainId: null,
+						address: token.address,
+						symbol: token.symbol,
+						decimals: token.decimals,
+						name: token.name,
+					});
+				await upsertMeteoraMetadata(tx, pool, publication.officialDirectory.asOf);
+			}
+		}
 		if (publication) {
 			for (const hour of hours) {
-				if (hour.chainId === null) throw new Error("Non-EVM publication requires the S3 contract");
+				if (hour.chainId === null) {
+					if (
+						publication.chain !== "solana" ||
+						!publication.officialAsOf ||
+						hour.sourceObservation.coverage !== "reported_hour"
+					)
+						throw new Error("Non-EVM publication requires reported hourly coverage");
+					continue;
+				}
 				const current = await listScannedHours(tx, {
 					chainId: hour.chainId,
 					protocol: hour.protocol,
@@ -1491,23 +1558,30 @@ export async function commitHourCheckpoint(
 		for (const row of windows) await upsertWindow(tx, row);
 		for (const row of hours) await upsertScannedHour(tx, row);
 		for (const decision of publication?.usdDeferrals ?? []) await deferUsdRepair(tx, decision);
-		if (publication && hours.length > 0) {
-			const newest = hours.reduce((last, hour) =>
-				Date.parse(hour.asOf) > Date.parse(last.asOf) ? hour : last,
-			);
+		if (publication && (hours.length > 0 || publication.officialDirectory)) {
+			const newest = hours.length
+				? hours.reduce((last, hour) =>
+						Date.parse(hour.asOf) > Date.parse(last.asOf) ? hour : last,
+					)
+				: undefined;
+			const publishedAsOf = publication.officialAsOf ?? newest!.asOf;
 			await tx.execute({
-				sql: `INSERT INTO chain_publications (chain, revision, run_id, block_number, block_time, published_at)
-					VALUES (?, 1, ?, ?, ?, ?)
+				sql: `INSERT INTO chain_publications (chain, revision, run_id, block_number, block_time, published_at, official_discovery_as_of, source_observation)
+					VALUES (?, 1, ?, ?, ?, ?, ?, ?)
 					ON CONFLICT(chain) DO UPDATE SET revision = chain_publications.revision + 1,
 					run_id = excluded.run_id, published_at = excluded.published_at,
+					official_discovery_as_of = COALESCE(excluded.official_discovery_as_of, chain_publications.official_discovery_as_of),
+					source_observation = COALESCE(excluded.source_observation, chain_publications.source_observation),
 					block_number = CASE WHEN julianday(excluded.block_time) >= julianday(chain_publications.block_time) THEN excluded.block_number ELSE chain_publications.block_number END,
 					block_time = CASE WHEN julianday(excluded.block_time) >= julianday(chain_publications.block_time) THEN excluded.block_time ELSE chain_publications.block_time END`,
 				args: [
 					publication.chain,
 					publication.runId,
-					newest.toBlock,
-					newest.asOf,
+					publication.chain === "solana" ? null : newest!.toBlock,
+					publishedAsOf,
 					new Date().toISOString(),
+					publication.officialDirectory?.asOf ?? null,
+					publication.officialObservation ? JSON.stringify(publication.officialObservation) : null,
 				],
 			});
 			await finishRefreshRun(tx, publication.runId, {
@@ -1584,11 +1658,12 @@ async function persistDiscovered(
 	chainId: number,
 ): Promise<void> {
 	const now = new Date().toISOString();
+	const chainKey = chainRef(chainId).chain;
 	const sql = `
 		INSERT INTO pools (
 			pool_id, chain_id, protocol, token0, token1, fee_pips, tick_spacing,
-			hooks, pool_address, created_block, created_at_unix, discovered_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			hooks, pool_address, created_block, created_at_unix, discovered_at, chain_key, native_pool_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(pool_id) DO UPDATE SET
 			created_at_unix = COALESCE(pools.created_at_unix, excluded.created_at_unix)
 	`;
@@ -1611,6 +1686,8 @@ async function persistDiscovered(
 					Number(pool.createdBlock),
 					null,
 					now,
+					chainKey,
+					pool.poolId.slice(pool.poolId.lastIndexOf(":") + 1),
 				],
 			})),
 			"write",

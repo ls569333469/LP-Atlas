@@ -35,7 +35,7 @@
 ## 落地顺序
 
 1. 跑通 Elysium 上的 Uniswap V3 与 Uniswap V4。Elysium 是 Uniswap 官方部署链，但没有官方索引，已定窗口（1 小时、2 小时、4 小时、6 小时、24 小时、3 天）必须自建并如实展示，不得空着，也不得用其他窗口冒充。2026-11-14 用户取消本期归档 RPC、逐池金额对账与剩余缺档归因前置条件，Elysium 第一期验收完成；读状态仍优先用官方 StateView。联调允许使用官方公开节点 https://rpc.elysium.kinetiq.xyz，并标明这是临时公开源（public_temporary）。
-2. 接入 BSC 上的 Pancake V3 与 Uniswap V3。
-3. 接入同一条链上的 Pancake Infinity 与 Uniswap V4。适配器必须分开写。
-4. 按同样方式接 Ethereum 与 Base 的 Uniswap V3/V4，以及 Solana 的 Meteora DLMM 与 Raydium CLMM。各链接入时用当时的现行官方协议。
+2. Robinhood Chain 上的 Uniswap V3 与 V4 已于 2026-11-14 获单独授权并生产拉数，规则见 [08-robinhood-venue.md](../04-standards/08-robinhood-venue.md)。这是当时的例外，不改变其他场所须单独授权才能启用的规则。
+3. 下一步先接 Solana：先做 Meteora 的动态流动性做市（对照 DLMM），再单独做 Raydium 的集中流动性（对照 CLMM）。必须先补非以太坊底座，再写适配器；标准未宣布启用前，不得改成已启用，也不得拉生产数据。详细边界见 [17-solana-venue-architecture-2026-11-20.md](../05-operations/17-solana-venue-architecture-2026-11-20.md)。2026-11-20 用户确认先更新 Solana，BSC 暂时不动。
+4. BSC 上的 Pancake V3 与 Uniswap V3，以及随后的同链 Pancake Infinity 与 Uniswap V4、Ethereum 与 Base 的 Uniswap V3/V4，仍在正式清单内，但暂时不动，须另行授权后再启。Solana 上的 Meteora DAMM V2 仍为后期协议，不提前实现。各链接入时用当时的现行官方协议。
 5. 扫描验收通过后实现开仓层。自动开仓仍暂缓。

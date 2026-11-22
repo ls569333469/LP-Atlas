@@ -67,6 +67,7 @@ import type {
 } from "../store/types.ts";
 import { isEvmPool, isEvmToken } from "../store/types.ts";
 import { poolFeeStatus } from "./fee-quality.ts";
+import { readMeteoraBoardRows } from "./official-board.ts";
 import { evaluatePoolRisks } from "./pool-risks.ts";
 import { rawPriceToken1PerToken0 } from "./prices.ts";
 
@@ -214,8 +215,9 @@ async function readBoardSnapshot(
 		direction: input.query.sortDirection,
 		window: input.query.window,
 	});
-	const catalog = productCatalog();
-	const venues = enabledVenues();
+	const runtime = { solanaDlmm: input.chainRpcSources.some((source) => source.chain === "solana") };
+	const catalog = productCatalog(runtime);
+	const venues = enabledVenues(runtime);
 	const lastSuccess = await latestSuccessfulRefresh(input.db, input.readChain);
 	const latest = await latestRefreshRun(input.db, input.readChain);
 	const refresh = toBoardRefreshState({ latest, lastSuccess });
@@ -253,6 +255,27 @@ async function readBoardSnapshot(
 		};
 	}
 
+	if (input.readChain === "solana") {
+		const official = await readMeteoraBoardRows({
+			db: input.db,
+			asOf: lastSuccess.blockTime,
+			filters,
+			sort,
+			allWindows,
+		});
+		const selectedWindow = official.windowsMeta[sort.window];
+		return {
+			...base,
+			...official,
+			source: "official_index",
+			asOf: lastSuccess.blockTime,
+			windowStart: selectedWindow.windowStart,
+			windowEnd: selectedWindow.windowEnd,
+			currentHourComplete: false,
+			gaps: parseList(lastSuccess.gaps),
+			warnings: [...parseList(lastSuccess.warnings), ...freshnessWarnings(refresh)],
+		};
+	}
 	const asOfUnix = Math.floor(new Date(lastSuccess.blockTime).getTime() / 1000);
 	const { current, previous } = currentAndPreviousWindows(asOfUnix, sort.window);
 	const windowRanges = new Map(

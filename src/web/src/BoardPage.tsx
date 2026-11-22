@@ -146,7 +146,13 @@ function StatusStrip(props: {
 				</strong>{" "}
 				· Asia/Shanghai
 			</span>
-			<span>自建小时档 · 已发现 {board ? discoveredTotal(board).toLocaleString() : "—"} 池</span>
+			<span>
+				{board?.appliedFilters.chain === "solana" ||
+				(board?.appliedFilters.chains?.length === 1 && board.appliedFilters.chains[0] === "solana")
+					? "官方小时档"
+					: "自建小时档"}{" "}
+				· 已发现 {board ? discoveredTotal(board).toLocaleString() : "—"} 池
+			</span>
 			{board && !board.currentHourComplete ? <span>当前小时未完成 *</span> : null}
 			<span title={board ? rpcLabel(board) : undefined}>
 				{board && isPublicTemporary(board) ? "公共 RPC · 临时非生产" : "服务端数据源"}
@@ -643,7 +649,7 @@ export function BoardPage(): ReactElement {
 	}
 	const pagination = board ? (
 		<BoardPagination
-			admissionSummary={`准入 TVL ≥ $${appliedFilters.minTvlUsd} · 1H 成交 ≥ $${appliedFilters.minWindowVolumeUsd} · 1H LP费 ≥ $${appliedFilters.minLpFees1hUsd}`}
+			admissionSummary={`准入 TVL ≥ $${appliedFilters.minTvlUsd} · 1H 成交 ≥ $${appliedFilters.minWindowVolumeUsd}${appliedFilters.chains.length === 1 && appliedFilters.chains[0] === "solana" ? " · 官方候选" : ` · EVM 1H LP费 ≥ $${appliedFilters.minLpFees1hUsd}`}`}
 			board={board}
 			disabled={loading}
 			onPage={changePage}

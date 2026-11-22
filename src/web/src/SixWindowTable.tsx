@@ -265,6 +265,7 @@ export function PoolMetrics(props: {
 				代币：{row.token0.symbol} <code>{row.token0.address}</code> / {row.token1.symbol}{" "}
 				<code>{row.token1.address}</code>
 			</p>
+			{row.officialPool ? <MeteoraDetails details={row.officialPool} /> : null}
 			<details className="detail-window-values" open={!props.compact}>
 				<summary>六窗口数据</summary>
 				<div className="matrix-scroll">
@@ -319,9 +320,14 @@ export function PoolMetrics(props: {
 					{(
 						board.chainRpcSources.find((item) => item.chain === row.chain)?.rpcSource ??
 						board.rpcSource
-					).kind === RPC_SOURCE_PUBLIC_TEMPORARY
-						? "临时公共数据源"
-						: "已配置数据源"}{" "}
+					).kind === "official_index"
+						? "Meteora 官方 API"
+						: (
+									board.chainRpcSources.find((item) => item.chain === row.chain)?.rpcSource ??
+									board.rpcSource
+								).kind === RPC_SOURCE_PUBLIC_TEMPORARY
+							? "临时公共数据源"
+							: "已配置数据源"}{" "}
 					· 截止{" "}
 					{formatTime(
 						board.chainRpcSources.find((item) => item.chain === row.chain)?.refresh
@@ -350,5 +356,101 @@ export function PoolMetrics(props: {
 				<p>将鼠标移到指标上，可查看数值、截止时间和数据状态。</p>
 			</details>
 		</article>
+	);
+}
+
+function MeteoraDetails({
+	details,
+}: {
+	details: NonNullable<BoardRow["officialPool"]>;
+}): ReactElement {
+	const p = details.metadata;
+	const percent = (value: string | null) => (value === null ? "—" : `${value}%`);
+	const flag = (value: boolean | null) => (value === null ? "未提供" : value ? "是" : "否");
+	return (
+		<details className="detail-source">
+			<summary>DLMM 资料</summary>
+			<p>官方 API · 更新于 {formatTime(details.asOf)} · LP手续费与收益年化尚未核实</p>
+			<p>
+				池名称：{p.name ?? "—"} · Bin Step：{p.binStep ?? "—"} · 池类型：{p.pairType ?? "—"}
+			</p>
+			<p>
+				基础费率 {percent(p.baseFeePercent)} · 动态费率字段原值 {percent(p.dynamicFeePercent)} ·
+				最大费率字段原值 {percent(p.maxFeePercent)} · 协议分成比例 {percent(p.protocolFeePercent)}
+			</p>
+			<p>动态及最大费率字段含义待核，暂不作为实际总费率。</p>
+			<p>
+				收费模式：
+				{p.collectFeeMode === 0
+					? "InputOnly"
+					: p.collectFeeMode === 1
+						? "OnlyY"
+						: (p.collectFeeMode ?? "—")}{" "}
+				· 当前池价格 {p.currentPrice ?? "—"}
+			</p>
+			<p>
+				当前储备：{p.tokenX.symbol} {p.tokenXAmount ?? "—"} / {p.tokenY.symbol}{" "}
+				{p.tokenYAmount ?? "—"}
+			</p>
+			<p>
+				储备账户：<code>{p.reserveX ?? "—"}</code> / <code>{p.reserveY ?? "—"}</code>
+			</p>
+			{[p.tokenX, p.tokenY].map((t) => (
+				<div key={t.address}>
+					<p>
+						{t.name ?? t.symbol} · 价格 {formatUsd(t.priceUsd)} · 市值 {formatUsd(t.marketCapUsd)} ·
+						持有人 {t.holders ?? "—"} · 总供应 {t.totalSupply ?? "—"}
+					</p>
+					<p>
+						官方验证：{flag(t.isVerified)} · 冻结权限已撤销：{flag(t.freezeAuthorityDisabled)}
+					</p>
+				</div>
+			))}
+			<p>
+				农场：{flag(p.hasFarm)} · 激励 APR 原值 {p.farmApr ?? "—"} · APY 原值 {p.farmApy ?? "—"}
+			</p>
+			<p>
+				奖励代币：<code>{p.rewardMintX ?? "—"}</code> / <code>{p.rewardMintY ?? "—"}</code>
+			</p>
+			<p>
+				标签：{p.tags.join("、") || "—"} · Launchpad：{p.launchpad ?? "—"} · 官方黑名单标记：
+				{flag(p.isBlacklisted)}
+			</p>
+			<details>
+				<summary>官方滚动统计</summary>
+				<div className="matrix-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th>窗口</th>
+								<th>成交量</th>
+								<th>报告费用</th>
+								<th>协议费用</th>
+								<th>费用/TVL原值</th>
+							</tr>
+						</thead>
+						<tbody>
+							{Object.keys(p.reportedStatistics.volume).map((w) => (
+								<tr key={w}>
+									<th>{w}</th>
+									<td>{formatUsd(p.reportedStatistics.volume[w] ?? null)}</td>
+									<td>{formatUsd(p.reportedStatistics.fees[w] ?? null)}</td>
+									<td>{formatUsd(p.reportedStatistics.protocolFees[w] ?? null)}</td>
+									<td>{p.reportedStatistics.feeTvlRatio[w] ?? "—"}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+				<p>
+					累计成交 {formatUsd(p.reportedStatistics.cumulative.volume ?? null)} · 累计报告费用{" "}
+					{formatUsd(p.reportedStatistics.cumulative.fees ?? null)}
+				</p>
+				<p>
+					来源 APR 原值 {p.reportedStatistics.apr ?? "—"} · APY 原值{" "}
+					{p.reportedStatistics.apy ?? "—"}；未作为本地LP收益年化使用。
+				</p>
+			</details>
+		</details>
 	);
 }

@@ -49,7 +49,7 @@ API 启动后先扫描一次，此后每五分钟按链检查；同链忙则跳�
 
 如果没有设置 `ELYSIUM_RPC_URL`，服务仍可启动，并临时使用官方公共节点 `https://rpc.elysium.kinetiq.xyz`。界面须标明这是临时公开源（`public_temporary`），不能当作生产或验收主源。公共节点不是归档节点，历史日志或状态不足时会报错或标出缺口，不会用其它窗口冒充已定窗口，也不会把过期表当成新数据。
 
-办理 Alchemy 的步骤见 [docs/05-operations/04-prepare.md](docs/05-operations/04-prepare.md)。
+办理 Alchemy 的步骤见 [docs/05-operations/04-第一期准备事项.md](docs/05-operations/04-第一期准备事项.md)。
 
 扫描状态见 `/api/v1/health` 的 `autoScan` 和 `refresh`，包含下次触发时间、最近结果及跳过/失败原因。资源保护、小时批次、停止与回退见 [运行说明](docs/05-operations/03-runtime.md)。
 

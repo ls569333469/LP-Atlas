@@ -2,6 +2,11 @@ import Fastify from "fastify";
 import { errorText } from "../adapters/errors.ts";
 import type { ElysiumRpc } from "../adapters/rpc.ts";
 import { readBoard, toBoardRefreshState } from "../normalize/board.ts";
+import {
+	METEORA_SOURCE,
+	type MeteoraRefreshConfig,
+	runMeteoraRefresh,
+} from "../normalize/official-refresh.ts";
 import { runRefreshPipeline } from "../normalize/refresh-pipeline.ts";
 import {
 	enabledVenues,
@@ -50,6 +55,7 @@ export function buildApp(input: {
 	rpc: ElysiumRpc;
 	robinhoodRpc?: ElysiumRpc;
 	quoteSource?: UsdQuoteSource;
+	solanaDlmm?: MeteoraRefreshConfig;
 	autoScan?: AutoScanConfig & { databasePath: string };
 }) {
 	const app = Fastify({
@@ -68,11 +74,15 @@ export function buildApp(input: {
 	});
 
 	const chainRpcSources = chainRpcSourcesFor(input.rpc, input.robinhoodRpc);
+	if (input.solanaDlmm)
+		chainRpcSources.push({ chain: "solana", evmChainId: null, rpcSource: METEORA_SOURCE });
+	const runtimeVenues = { solanaDlmm: Boolean(input.solanaDlmm) };
 	const refreshByScope = new Map<string, Promise<RefreshSuccessResponse>>();
 	const activeScopes = new Set<string>();
-	const targets = [
+	const targets: { chain: string; rpc?: ElysiumRpc }[] = [
 		{ chain: "elysium", rpc: input.rpc },
 		...(input.robinhoodRpc ? [{ chain: "robinhood", rpc: input.robinhoodRpc }] : []),
+		...(input.solanaDlmm ? [{ chain: "solana" }] : []),
 	];
 	const pageBoard = createBoardPager();
 
@@ -94,16 +104,30 @@ export function buildApp(input: {
 		if (!pending) {
 			pending = (async (): Promise<RefreshSuccessResponse> => {
 				const started = Date.now();
-				const selected = targets.filter((target) => !scope.chain || target.chain === scope.chain);
+				const selected = targets.filter(
+					(target) =>
+						(!scope.chain || target.chain === scope.chain) &&
+						(target.chain === "solana"
+							? !scope.protocol || scope.protocol === "meteora_dlmm"
+							: scope.protocol !== "meteora_dlmm"),
+				);
 				if (selected.length === 0) throw new Error("该链没有配置运行中的扫描客户端");
 				const results = await Promise.allSettled(
 					selected.map(async (target) => {
 						const key = `${target.chain}:${scope.protocol ?? "*"}`;
 						activeScopes.add(key);
 						try {
+							if (target.chain === "solana")
+								return await runMeteoraRefresh({
+									db: input.db,
+									config: input.solanaDlmm!,
+									checkStorage: input.autoScan
+										? () => scanStorageBlockReason(input.autoScan!.databasePath, input.autoScan!)
+										: undefined,
+								});
 							return await runRefreshPipeline({
 								db: input.db,
-								rpc: target.rpc,
+								rpc: target.rpc!,
 								quoteSource: input.quoteSource,
 								scope: { ...scope, chain: target.chain },
 								checkStorage: input.autoScan
@@ -198,8 +222,8 @@ export function buildApp(input: {
 				chainRpcSources.map((source) => source.chain),
 			),
 			autoScan: autoScanner?.getState(),
-			catalog: productCatalog(),
-			enabledVenues: enabledVenues(),
+			catalog: productCatalog(runtimeVenues),
+			enabledVenues: enabledVenues(runtimeVenues),
 			chainRpcSources: await Promise.all(
 				chainRpcSources.map(async (source) => ({
 					...source,
@@ -296,7 +320,10 @@ export function buildApp(input: {
 
 	app.post("/api/v1/refresh", async (request, reply): Promise<RefreshResponse> => {
 		const body = (request.body ?? {}) as RefreshRequest;
-		const scope = resolveRefreshScope({ chain: body.chain, protocol: body.protocol });
+		const scope = resolveRefreshScope(
+			{ chain: body.chain, protocol: body.protocol },
+			runtimeVenues,
+		);
 		if ("error" in scope) {
 			void reply.code(400);
 			return {

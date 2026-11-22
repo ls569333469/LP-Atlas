@@ -130,7 +130,7 @@ export function QueryFilterDialog(props: {
 					</section>
 					<section>
 						<h3>
-							基础准入 <small>同时满足三项</small>
+							基础准入 <small>EVM三项；Solana官方候选仅TVL与成交量</small>
 						</h3>
 						<div className="query-gates">
 							{(

@@ -8,6 +8,8 @@ export type SourceObservation = {
 	dataCutoff: string | null;
 	finality: "unverified" | "finalized";
 	feeAttribution: "unverified" | "ordinary_lp_verified";
+	/** The reported hourly value was obtained, not proof of chain finality. */
+	coverage?: "reported_hour";
 };
 
 export type SourceCapabilities =
@@ -34,7 +36,8 @@ export function sourceObservation(value: unknown): SourceObservation {
 		(v.dataCutoff !== null &&
 			(typeof v.dataCutoff !== "string" || !Number.isFinite(Date.parse(v.dataCutoff)))) ||
 		(v.finality !== "unverified" && v.finality !== "finalized") ||
-		(v.feeAttribution !== "unverified" && v.feeAttribution !== "ordinary_lp_verified")
+		(v.feeAttribution !== "unverified" && v.feeAttribution !== "ordinary_lp_verified") ||
+		(v.coverage !== undefined && v.coverage !== "reported_hour")
 	) {
 		throw new Error("Invalid source observation");
 	}
@@ -57,6 +60,7 @@ export function sourceObservation(value: unknown): SourceObservation {
 		dataCutoff: v.dataCutoff as string | null,
 		finality: v.finality,
 		feeAttribution: v.feeAttribution,
+		...(v.coverage === undefined ? {} : { coverage: "reported_hour" as const }),
 	};
 }
 

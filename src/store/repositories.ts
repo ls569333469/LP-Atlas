@@ -5,6 +5,7 @@ import {
 	METRIC_SOURCE_SELF_BUILT,
 	METRIC_SOURCE_UNOFFICIAL,
 } from "../shared/constants.ts";
+import type { MeteoraPoolMetadata } from "../shared/meteora.ts";
 import { solanaPoolStorageKey } from "../shared/pool-identity.ts";
 import { solanaPublicKey } from "../shared/solana-identifiers.ts";
 import { assertSourceCompletion, sourceObservation } from "../shared/source-contracts.ts";
@@ -39,7 +40,10 @@ function tokenArgs(token: StoredToken) {
 	return [ref.chain, ref.evmChainId, token.address, token.symbol, token.decimals, token.name];
 }
 
-export async function upsertToken(db: AppDatabase, token: StoredToken): Promise<void> {
+export async function upsertToken(
+	db: Pick<AppDatabase, "execute">,
+	token: StoredToken,
+): Promise<void> {
 	await db.execute({
 		sql: TOKEN_UPSERT,
 		args: tokenArgs(token),
@@ -117,7 +121,7 @@ function mapToken(row: Record<string, unknown>): StoredToken {
 }
 
 export async function upsertPool(
-	db: AppDatabase,
+	db: Pick<AppDatabase, "execute">,
 	pool: StoredPool,
 	discoveredAt: string,
 ): Promise<void> {
@@ -165,6 +169,40 @@ export async function upsertPool(
 	});
 	if (result.rowsAffected !== 1)
 		throw new Error("Physical pool key already belongs to another identity");
+}
+
+export async function upsertMeteoraMetadata(
+	db: Pick<AppDatabase, "execute">,
+	metadata: MeteoraPoolMetadata,
+	observedAt: string,
+): Promise<void> {
+	await db.execute({
+		sql: `UPDATE pools SET official_metadata=?, official_metadata_as_of=?
+			WHERE pool_id=? AND chain_key='solana' AND protocol='meteora_dlmm'
+			AND (official_metadata_as_of IS NULL OR julianday(official_metadata_as_of)<=julianday(?))`,
+		args: [
+			JSON.stringify(metadata),
+			observedAt,
+			solanaPoolStorageKey("meteora_dlmm", metadata.address),
+			observedAt,
+		],
+	});
+}
+
+export async function listMeteoraMetadata(
+	db: Pick<AppDatabase, "execute">,
+): Promise<Map<string, { metadata: MeteoraPoolMetadata; asOf: string }>> {
+	const result = await db.execute(`SELECT pool_id, official_metadata, official_metadata_as_of
+		FROM pools WHERE chain_key='solana' AND protocol='meteora_dlmm' AND official_metadata IS NOT NULL`);
+	return new Map(
+		result.rows.map((row) => [
+			String(row.pool_id),
+			{
+				metadata: JSON.parse(String(row.official_metadata)) as MeteoraPoolMetadata,
+				asOf: String(row.official_metadata_as_of),
+			},
+		]),
+	);
 }
 
 function mapPool(row: Record<string, unknown>): StoredPool {
@@ -349,8 +387,9 @@ export async function upsertWindow(
 			INSERT INTO window_aggregates (
 				pool_id, window_start, window_end, complete, volume0, volume1, lp_fees0, lp_fees1,
 				swap_count, volume_usd, lp_fees_usd, tvl_usd, sqrt_price_start, sqrt_price_end,
-				source, as_of, gap_reason, fee_status, usd_valuation_version, representation, source_observation
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				source, as_of, gap_reason, fee_status, usd_valuation_version, representation, source_observation,
+				reported_fees_usd, reported_protocol_fees_usd
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(pool_id, window_start) DO UPDATE SET
 				window_end = excluded.window_end,
 				complete = excluded.complete,
@@ -367,7 +406,8 @@ export async function upsertWindow(
 				source = excluded.source,
 				as_of = excluded.as_of,
 				gap_reason = excluded.gap_reason,
-				fee_status = excluded.fee_status, usd_valuation_version = excluded.usd_valuation_version, representation = excluded.representation, source_observation = excluded.source_observation
+				fee_status = excluded.fee_status, usd_valuation_version = excluded.usd_valuation_version, representation = excluded.representation, source_observation = excluded.source_observation,
+				reported_fees_usd = excluded.reported_fees_usd, reported_protocol_fees_usd = excluded.reported_protocol_fees_usd
 			WHERE window_aggregates.representation=excluded.representation AND
 			(window_aggregates.representation='native_amounts' OR
 			 (json_extract(window_aggregates.source_observation,'$.source')=json_extract(excluded.source_observation,'$.source')
@@ -396,6 +436,8 @@ export async function upsertWindow(
 			window.usdValuationVersion ?? null,
 			window.representation ?? "native_amounts",
 			window.sourceObservation ? JSON.stringify(window.sourceObservation) : null,
+			window.representation === "official_usd" ? (window.reportedFeesUsd ?? null) : null,
+			window.representation === "official_usd" ? (window.reportedProtocolFeesUsd ?? null) : null,
 		],
 	});
 	if (result.rowsAffected !== 1)
@@ -426,6 +468,8 @@ function mapWindow(row: Record<string, unknown>): StoredWindow {
 		return {
 			...common,
 			representation: "official_usd",
+			reportedFeesUsd: rowString(row.reportedFeesUsd),
+			reportedProtocolFeesUsd: rowString(row.reportedProtocolFeesUsd),
 			usdValuationVersion: null,
 			sourceObservation: sourceObservation(JSON.parse(String(row.sourceObservation))),
 			volume0: null,
@@ -481,7 +525,8 @@ const WINDOW_SELECT = `
 		complete, volume0, volume1, lp_fees0 AS lpFees0, lp_fees1 AS lpFees1,
 		swap_count AS swapCount, volume_usd AS volumeUsd, lp_fees_usd AS lpFeesUsd,
 		tvl_usd AS tvlUsd, sqrt_price_start AS sqrtPriceStart, sqrt_price_end AS sqrtPriceEnd,
-		source, representation, source_observation AS sourceObservation, as_of AS asOf, gap_reason AS gapReason, fee_status AS feeStatus, usd_valuation_version AS usdValuationVersion
+		source, representation, source_observation AS sourceObservation, as_of AS asOf, gap_reason AS gapReason, fee_status AS feeStatus, usd_valuation_version AS usdValuationVersion,
+		reported_fees_usd AS reportedFeesUsd, reported_protocol_fees_usd AS reportedProtocolFeesUsd
 	FROM window_aggregates
 `;
 

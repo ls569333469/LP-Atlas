@@ -14,6 +14,7 @@ export type ServerEnv = {
 	databasePath: string;
 	rpc: ElysiumRpc;
 	robinhoodRpc: ElysiumRpc;
+	solanaDlmmEnabled: boolean;
 	autoScan: AutoScanConfig;
 	theGraphApiKey?: string;
 	pancakeV3BscSubgraphId?: string;
@@ -54,7 +55,11 @@ export function loadServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
 	if (autoScanEnabled !== "true" && autoScanEnabled !== "false") {
 		throw new Error("AUTO_SCAN_ENABLED 必须为 true 或 false");
 	}
+	const solanaDlmmEnabled = env.SOLANA_DLMM_ENABLED?.trim() || "false";
+	if (solanaDlmmEnabled !== "true" && solanaDlmmEnabled !== "false")
+		throw new Error("SOLANA_DLMM_ENABLED 必须为 true 或 false");
 	return {
+		solanaDlmmEnabled: solanaDlmmEnabled === "true",
 		host,
 		port,
 		databasePath,

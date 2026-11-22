@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { queryOfficialJson } from "../src/adapters/official-index.ts";
 import {
 	meteoraCandidateWindows,
+	parseMeteoraCurrentAccounts,
 	parseMeteoraHistory,
 	readMeteoraHistory,
 	readMeteoraPool,
@@ -72,6 +73,75 @@ it("reads official current metadata separately from historical values without en
 	);
 	expect(venueAdapter.kind).toBe("placeholder");
 	expect(() => venueAdapter.assertCanRefresh()).toThrow("尚未启用");
+});
+
+it("keeps real current reserve integers and Token-2022 extensions separate from historical metrics", async () => {
+	const evidence = fixture("public-current-reserves");
+	const pool0 = await readMeteoraPool(poolId, { fetchImpl: fetchJson(fixture("pool-0")) });
+	const pool1Id = "7qZPiJ2Lvwh9DV9gUBH2EwConBE3RUrAvGRjpN8vTjtT";
+	const pool1 = await readMeteoraPool(pool1Id, { fetchImpl: fetchJson(fixture("pool-1")) });
+	const standard = parseMeteoraCurrentAccounts(evidence.response, evidence.addresses, pool0);
+	expect(standard).toMatchObject({
+		slot: 472203524,
+		poolId,
+		tokenX: { compatibility: "standard_spl_current_only", decimals: 9 },
+		tokenY: { compatibility: "standard_spl_current_only", decimals: 6 },
+	});
+	const reserveIndex = evidence.addresses.indexOf(pool0.reserveX);
+	expect(standard.tokenX.amount).toBe(
+		evidence.response.result.value[reserveIndex].data.parsed.info.tokenAmount.amount,
+	);
+	const extended = parseMeteoraCurrentAccounts(evidence.response, evidence.addresses, pool1);
+	expect(extended.tokenX.compatibility).toBe("token2022_unverified");
+	expect(extended.tokenX.extensions).toContainEqual({
+		extension: "transferHook",
+		state: expect.objectContaining({ programId: null }),
+	});
+	expect(extended).not.toHaveProperty("tvlUsd");
+	expect(extended).not.toHaveProperty("lpFeesUsd");
+	const reserve = evidence.response.result.value[reserveIndex].data.parsed.info;
+	reserve.tokenAmount.amount = "9007199254740993";
+	// lamports and floating UI balances are not the WSOL token amount.
+	reserve.tokenAmount.uiAmount = 1;
+	evidence.response.result.value[reserveIndex].lamports = 1;
+	expect(
+		parseMeteoraCurrentAccounts(evidence.response, evidence.addresses, pool0).tokenX.amount,
+	).toBe("9007199254740993");
+});
+
+it.each(["missing", "owner", "mint", "authority", "decimals", "negative", "overflow"])(
+	"rejects current account evidence with %s mismatch instead of guessing amounts",
+	async (fault) => {
+		const evidence = fixture("public-current-reserves");
+		const pool = await readMeteoraPool(poolId, { fetchImpl: fetchJson(fixture("pool-0")) });
+		const index = evidence.addresses.indexOf(pool.reserveX);
+		const account = evidence.response.result.value[index];
+		if (fault === "missing") evidence.response.result.value[index] = null;
+		if (fault === "owner") account.owner = poolId;
+		if (fault === "mint") account.data.parsed.info.mint = pool.tokenY.address;
+		if (fault === "authority") account.data.parsed.info.owner = pool.tokenY.address;
+		if (fault === "decimals") account.data.parsed.info.tokenAmount.decimals = 6;
+		if (fault === "negative") account.data.parsed.info.tokenAmount.amount = "-1";
+		if (fault === "overflow") account.data.parsed.info.tokenAmount.amount = "18446744073709551616";
+		expect(() =>
+			parseMeteoraCurrentAccounts(evidence.response, evidence.addresses, pool),
+		).toThrow();
+	},
+);
+
+it("refuses incomplete or duplicate account batches and RPC failures", async () => {
+	const evidence = fixture("public-current-reserves");
+	const pool = await readMeteoraPool(poolId, { fetchImpl: fetchJson(fixture("pool-0")) });
+	expect(() =>
+		parseMeteoraCurrentAccounts({ error: { code: -32000 } }, evidence.addresses, pool),
+	).toThrow("RPC failed");
+	expect(() => parseMeteoraCurrentAccounts(evidence.response, [poolId, poolId], pool)).toThrow(
+		"Duplicate",
+	);
+	evidence.response.result.value.pop();
+	expect(() => parseMeteoraCurrentAccounts(evidence.response, evidence.addresses, pool)).toThrow(
+		"count mismatch",
+	);
 });
 
 it("requests exactly one explicit discovery page and returns its next page without crawling", async () => {
@@ -196,14 +266,14 @@ it("does not reinterpret reported fees, current TVL, raw amounts or prices as kn
 	expect(metrics?.lpFeesUsd).toBeNull();
 });
 
-it("fails a 429 once, without retry storms or accepting an error page as data", async () => {
+it("bounds a 429 to one retry without accepting an error page as data", async () => {
 	const fetchImpl = vi
 		.fn<typeof fetch>()
 		.mockResolvedValue(new Response("rate limited", { status: 429 }));
 	await expect(readMeteoraPool(poolId, { fetchImpl })).rejects.toMatchObject({
 		code: "index_rate_limited",
 	});
-	expect(fetchImpl).toHaveBeenCalledTimes(1);
+	expect(fetchImpl).toHaveBeenCalledTimes(2);
 });
 
 it("bounds response bytes and rejects malformed JSON", async () => {

@@ -4,6 +4,7 @@ export * from "./chain-ref.ts";
 export * from "./constants.ts";
 export * from "./deployments.ts";
 export * from "./format.ts";
+export * from "./meteora.ts";
 export * from "./pool-identity.ts";
 export * from "./query-controls.ts";
 export * from "./solana-identifiers.ts";

@@ -1,0 +1,232 @@
+{
+	"observedAt": "2026-11-21T16:31:18.339Z",
+	"sdk": "@coral-xyz/anchor@0.31.0",
+	"reason": "Meteora SDK 1.9.15 pins Anchor 0.31.0",
+	"sourceCommit": "1532e540db41ac405dbf4c5bb2ddfceaa1f98ff1",
+	"checkedEvents": 8,
+	"transactions": 4,
+	"assertions": "Official Anchor BorshEventCoder matches every reviewed field of old and new paired Swap events",
+	"events": [
+		{
+			"sample": 5,
+			"slot": 472206105,
+			"signature": "4aPuEJBKjfzBCfRFHhMWpn1cMjqn2rxMwdioEnzjj6RM2g5UyaWN8Z2aqbjPWxzGBgvcjzXEd5UxhJEsnpp4zNdw",
+			"outer": 1,
+			"inner": 2,
+			"event": "Swap",
+			"bytes": 145,
+			"decodedBytes": 145,
+			"values": {
+				"lb_pair": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+				"from": "MfDuWeqSHEqTFVYZ7LoexgAK9dxk7cy4DFJWjWMGVWa",
+				"start_bin_id": -6640,
+				"end_bin_id": -6640,
+				"amount_in": "1191296270",
+				"amount_out": "16947264492",
+				"swap_for_y": false,
+				"fee": "481811",
+				"protocol_fee": "48181",
+				"fee_bps": "404442",
+				"host_fee": "0"
+			}
+		},
+		{
+			"sample": 5,
+			"slot": 472206105,
+			"signature": "4aPuEJBKjfzBCfRFHhMWpn1cMjqn2rxMwdioEnzjj6RM2g5UyaWN8Z2aqbjPWxzGBgvcjzXEd5UxhJEsnpp4zNdw",
+			"outer": 1,
+			"inner": 3,
+			"event": "Swap2Evt",
+			"bytes": 163,
+			"decodedBytes": 163,
+			"values": {
+				"lb_pair": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+				"from": "MfDuWeqSHEqTFVYZ7LoexgAK9dxk7cy4DFJWjWMGVWa",
+				"start_bin_id": -6640,
+				"end_bin_id": -6640,
+				"swap_for_y": false,
+				"fee_bps": "404442",
+				"amount_in": "1191296270",
+				"amount_left": "0",
+				"amount_out": "16947264492",
+				"mm_fee": "433630",
+				"protocol_fee": "48181",
+				"limit_order_fee": "0",
+				"host_fee": "0",
+				"fees_on_input": true,
+				"fees_on_token_x": false
+			}
+		},
+		{
+			"sample": 9,
+			"slot": 472206041,
+			"signature": "55gcaVrqWWXEiu19qgaLJfAkWZ7NHnGriSbvzXMPwuScujg7Wa8h5yoJfox9bk2xAKstu9MmZeBFMCjGBWNX87Sk",
+			"outer": 1,
+			"inner": 1,
+			"event": "Swap",
+			"bytes": 145,
+			"decodedBytes": 145,
+			"values": {
+				"lb_pair": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+				"from": "97C1WcuAQcMDEnycaBxWcCYiLCUMXwRGUSxtbedJe3yK",
+				"start_bin_id": -6641,
+				"end_bin_id": -6641,
+				"amount_in": "5523987",
+				"amount_out": "78615306",
+				"swap_for_y": false,
+				"fee": "2222",
+				"protocol_fee": "178",
+				"fee_bps": "402086",
+				"host_fee": "44"
+			}
+		},
+		{
+			"sample": 9,
+			"slot": 472206041,
+			"signature": "55gcaVrqWWXEiu19qgaLJfAkWZ7NHnGriSbvzXMPwuScujg7Wa8h5yoJfox9bk2xAKstu9MmZeBFMCjGBWNX87Sk",
+			"outer": 1,
+			"inner": 5,
+			"event": "Swap2Evt",
+			"bytes": 163,
+			"decodedBytes": 163,
+			"values": {
+				"lb_pair": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+				"from": "97C1WcuAQcMDEnycaBxWcCYiLCUMXwRGUSxtbedJe3yK",
+				"start_bin_id": -6641,
+				"end_bin_id": -6641,
+				"swap_for_y": false,
+				"fee_bps": "402086",
+				"amount_in": "5523987",
+				"amount_left": "0",
+				"amount_out": "78615306",
+				"mm_fee": "2000",
+				"protocol_fee": "178",
+				"limit_order_fee": "0",
+				"host_fee": "44",
+				"fees_on_input": true,
+				"fees_on_token_x": false
+			}
+		},
+		{
+			"sample": 13,
+			"slot": 472205947,
+			"signature": "4ZtQ5dkBg7pmxo9r4Lzn8XWWU2Y5kCYbLa5Qa6JDbT5B9TNvLRGyEVdjMAEtkAumfeQyXJ9CxRdHK661c2jv7FX6",
+			"outer": 1,
+			"inner": 2,
+			"event": "Swap",
+			"bytes": 145,
+			"decodedBytes": 145,
+			"values": {
+				"lb_pair": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+				"from": "GzKQSXzpygd9YaR2PaYXpXhA7bMXCw7chgGTvG4puWC2",
+				"start_bin_id": -6641,
+				"end_bin_id": -6641,
+				"amount_in": "13787",
+				"amount_out": "967",
+				"swap_for_y": true,
+				"fee": "6",
+				"protocol_fee": "0",
+				"fee_bps": "402086",
+				"host_fee": "0"
+			}
+		},
+		{
+			"sample": 13,
+			"slot": 472205947,
+			"signature": "4ZtQ5dkBg7pmxo9r4Lzn8XWWU2Y5kCYbLa5Qa6JDbT5B9TNvLRGyEVdjMAEtkAumfeQyXJ9CxRdHK661c2jv7FX6",
+			"outer": 1,
+			"inner": 3,
+			"event": "Swap2Evt",
+			"bytes": 163,
+			"decodedBytes": 163,
+			"values": {
+				"lb_pair": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+				"from": "GzKQSXzpygd9YaR2PaYXpXhA7bMXCw7chgGTvG4puWC2",
+				"start_bin_id": -6641,
+				"end_bin_id": -6641,
+				"swap_for_y": true,
+				"fee_bps": "402086",
+				"amount_in": "13787",
+				"amount_left": "0",
+				"amount_out": "967",
+				"mm_fee": "6",
+				"protocol_fee": "0",
+				"limit_order_fee": "0",
+				"host_fee": "0",
+				"fees_on_input": true,
+				"fees_on_token_x": true
+			}
+		},
+		{
+			"sample": 19,
+			"slot": 472205883,
+			"signature": "32UeQSAZQHD7a9K2Nhqhm2JDdpHCDkw3qfwWKLwzySmcJzQRgUqAKAQMe6FpoLMzxbsof7JAS8DLmRusdnA4bMps",
+			"outer": 4,
+			"inner": 3,
+			"event": "Swap",
+			"bytes": 145,
+			"decodedBytes": 145,
+			"values": {
+				"lb_pair": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+				"from": "EMc1eifddQ1wCCpPye1kkbEwziDYugHxPDaWeiBHaH4x",
+				"start_bin_id": -6640,
+				"end_bin_id": -6640,
+				"amount_in": "1128145950",
+				"amount_out": "79238459",
+				"swap_for_y": true,
+				"fee": "451275",
+				"protocol_fee": "45127",
+				"fee_bps": "400014",
+				"host_fee": "0"
+			}
+		},
+		{
+			"sample": 19,
+			"slot": 472205883,
+			"signature": "32UeQSAZQHD7a9K2Nhqhm2JDdpHCDkw3qfwWKLwzySmcJzQRgUqAKAQMe6FpoLMzxbsof7JAS8DLmRusdnA4bMps",
+			"outer": 4,
+			"inner": 4,
+			"event": "Swap2Evt",
+			"bytes": 163,
+			"decodedBytes": 163,
+			"values": {
+				"lb_pair": "5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6",
+				"from": "EMc1eifddQ1wCCpPye1kkbEwziDYugHxPDaWeiBHaH4x",
+				"start_bin_id": -6640,
+				"end_bin_id": -6640,
+				"swap_for_y": true,
+				"fee_bps": "400014",
+				"amount_in": "1128145950",
+				"amount_left": "0",
+				"amount_out": "79238459",
+				"mm_fee": "406148",
+				"protocol_fee": "45127",
+				"limit_order_fee": "0",
+				"host_fee": "0",
+				"fees_on_input": true,
+				"fees_on_token_x": true
+			}
+		}
+	],
+	"idlSha256": "045c0f4af044be046b6a14b350077e4242e8ac026b64a855803dab30fcdd8b35",
+	"idlUrl": "https://raw.githubusercontent.com/MeteoraAg/dlmm-sdk/1532e540db41ac405dbf4c5bb2ddfceaa1f98ff1/ts-client/src/dlmm/idl/idl.json",
+	"scope": "Independent decoding evidence only; not full coverage or Datapi fee attribution acceptance",
+	"rawTransactions": [
+		{
+			"sample": 5,
+			"sha256": "9ec6a93d862ab4b2f28da1274dc694de9c44df1f33d5ba90e7f935765d78b21d"
+		},
+		{
+			"sample": 9,
+			"sha256": "0e8ac1ef2aa4b313659e8ffb3a7002f1eb31f9fd9dcd25edf47e0b9fba16edc9"
+		},
+		{
+			"sample": 13,
+			"sha256": "62f8990dd2ad560662a6b9b2d2c2e684f4882a08ad2c5e0d784f619908a2fa3b"
+		},
+		{
+			"sample": 19,
+			"sha256": "a55f6a10e1759bac54eae16d78cc55e3ead4cc915c69fb7efcdc997bf57a0ca7"
+		}
+	]
+}

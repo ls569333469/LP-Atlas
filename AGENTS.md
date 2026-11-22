@@ -45,3 +45,5 @@ Elysium第一期验收已按2026-11-14用户决定完成，用户取消的归档
 2026-11-17方案15运行补充：按用户授权在既有主站局部优化查询区/组合筛选、宽屏密度及右侧占位，保留全部字段、风险提示与默认口径，不重构。唯一API22472/3001（旧32128已退出），Vite28488/5173；日志outputs/service-api-query-controls-final.stdout.log，五分钟调度及按链互斥保持。实施/验证范围和采集独立限制以05顶部方案15为准，历史仅预览状态不再覆盖本轮授权。
 
 2026-11-21（Asia/Shanghai）方案18更新：按用户明确授权，在助手独立checkout完成S0/S1公共身份、原子迁移与存储兼容代码及离线测试；实际范围/回滚/未做见 `docs/05-operations/18-solana-s0-s1-implementation-2026-11-21.md`。17/18中旧“仅文档”是历史复审边界，不覆盖本次授权。未部署、未迁移运行库、未启动扫描；Solana三个场所仍listed/placeholder/not_started，S2费用与覆盖门仍阻塞；不动方案16/BSC/DAMM/Orca/钱包交易。
+
+2026-11-22 S3生产部署补充：用户授权“推进”后，已备份013运行库及旧程序/配置至`outputs/rollback-solana-s3-20261122-130312`，迁移014/015并核七表旧字段一致及quick_check通过。当前API9556/3001、Vite13284/5173，运行目录`D:\Axiangmu\LP Atlas`，显式开启Meteora DLMM，仍用原五分钟调度及按链互斥；日志`outputs/service-api-solana-s3-20261122.stdout.log`。Solana2652真实自动采集已成功、主站候选可用；生产观察收尾状态以05顶部为准。EVM节点与金额口径保持，Raydium/DAMM/BSC/钱包未启用。回滚须恢复配套旧程序和备份库，禁止旧程序直接写新库。

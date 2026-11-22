@@ -19,11 +19,17 @@ export type OfficialIndexErrorCode =
 
 export class OfficialIndexError extends Error {
 	readonly code: OfficialIndexErrorCode;
+	readonly retryAfterMs: number | undefined;
 
-	constructor(code: OfficialIndexErrorCode, message: string, options?: { cause?: unknown }) {
+	constructor(
+		code: OfficialIndexErrorCode,
+		message: string,
+		options?: { cause?: unknown; retryAfterMs?: number },
+	) {
 		super(message, options);
 		this.name = "OfficialIndexError";
 		this.code = code;
+		this.retryAfterMs = options?.retryAfterMs;
 	}
 }
 
@@ -50,10 +56,18 @@ export async function queryOfficialJson(
 			redirect: "error",
 		});
 		if (!response.ok) {
+			const retryAfter = response.headers.get("retry-after");
+			const retryAfterMs =
+				retryAfter === null
+					? undefined
+					: /^\d+(\.\d+)?$/.test(retryAfter.trim())
+						? Number(retryAfter) * 1000
+						: Math.max(0, Date.parse(retryAfter) - Date.now());
 			controller.abort();
 			throw new OfficialIndexError(
 				response.status === 429 ? "index_rate_limited" : "index_down",
 				`Official index HTTP ${response.status}`,
+				{ retryAfterMs: Number.isFinite(retryAfterMs) ? retryAfterMs : undefined },
 			);
 		}
 		const reader = response.body?.getReader();

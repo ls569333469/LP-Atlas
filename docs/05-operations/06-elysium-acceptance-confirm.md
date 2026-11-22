@@ -26,7 +26,7 @@
 | 文件 | 看什么 |
 | --- | --- |
 | [docs/04-standards/02-acceptance.md](../04-standards/02-acceptance.md) | 第一期正式验收的 8 条条款。重点看第 5 条（能对上链上或能解释差异）和第 6 条（生产验收须用带归档的节点和官方 StateView；公开节点只能联调并标明临时公开源） |
-| [docs/05-operations/04-prepare.md](04-prepare.md) | 归档节点怎么准备：Alchemy 控制台、Elysium Mainnet、archive 端点；公开节点 `https://rpc.elysium.kinetiq.xyz` 只能作临时公开源 |
+| [docs/05-operations/04-第一期准备事项.md](04-第一期准备事项.md) | 归档节点怎么准备：Alchemy 控制台、Elysium Mainnet、archive 端点；公开节点 `https://rpc.elysium.kinetiq.xyz` 只能作临时公开源 |
 | [docs/01-product/01-overview.md](../01-product/01-overview.md) | 第一期验收门的总述 |
 | [docs/01-product/02-decisions.md](../01-product/02-decisions.md) | 决定表里「验收标准」一行，指向 `02-acceptance.md` |
 | [docs/03-data/05-data-repair-and-1h-filter.md](../03-data/05-data-repair-and-1h-filter.md) | 第 5、6 节写明：本轮采集修复和真实 30 分钟扫描通过，不等于生产归档节点和第一期正式验收已经通过 |

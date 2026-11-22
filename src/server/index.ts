@@ -28,6 +28,7 @@ const app = buildApp({
 			: createRedstoneQuotes(),
 	rpc: env.rpc,
 	robinhoodRpc: env.robinhoodRpc,
+	solanaDlmm: env.solanaDlmmEnabled ? {} : undefined,
 	autoScan: { ...env.autoScan, databasePath: env.databasePath },
 });
 

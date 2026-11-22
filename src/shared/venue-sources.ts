@@ -1,4 +1,4 @@
-import { VENUE_CATALOG, venueKey } from "./catalog.ts";
+import { type RuntimeVenues, VENUE_CATALOG, venueKey } from "./catalog.ts";
 import { UNISWAP_V3_ELYSIUM, UNISWAP_V4_ELYSIUM } from "./constants.ts";
 import {
 	PANCAKE_INFINITY_BSC_BASE,
@@ -17,7 +17,11 @@ import type { SourceCapabilities } from "./source-contracts.ts";
 import type { WindowId } from "./types.ts";
 
 export type IngestPath = "official_index" | "self_built" | "not_started";
-export type OfficialIndexKind = "pancake_subgraph" | "uniswap_official_subgraph" | "none";
+export type OfficialIndexKind =
+	| "pancake_subgraph"
+	| "uniswap_official_subgraph"
+	| "meteora_rest"
+	| "none";
 export type OfficialNativeWindow = "1h" | "1d";
 
 export type VenueContracts = {
@@ -346,7 +350,24 @@ export function venueSourcePolicies(): readonly VenueSourcePolicy[] {
 	return POLICIES;
 }
 
-export function venueSourcePolicy(chain: string, protocol: string): VenueSourcePolicy | undefined {
+export function venueSourcePolicy(
+	chain: string,
+	protocol: string,
+	runtime: RuntimeVenues = {},
+): VenueSourcePolicy | undefined {
+	if (chain === "solana" && protocol === "meteora_dlmm" && runtime.solanaDlmm)
+		return {
+			chain,
+			protocol,
+			ingest: "official_index",
+			indexKind: "meteora_rest",
+			officialWindows: ["1h"],
+			contracts: {},
+			env: {},
+			officialSubgraphId: null,
+			notes:
+				"方案18官方USD候选：池级报告小时覆盖，LP费用与源finality未核实，不伪造EVM区块或历史储备。",
+		};
 	return POLICY_BY_KEY.get(venueKey(chain, protocol));
 }
 
@@ -361,8 +382,12 @@ export function assertVenueSourceCatalogCoverage(): void {
 assertVenueSourceCatalogCoverage();
 
 /** Reviewed capability boundaries; not all official sources are subgraphs. */
-export function venueSourceCapabilities(chain: string, protocol: string): SourceCapabilities {
-	const policy = venueSourcePolicy(chain, protocol);
+export function venueSourceCapabilities(
+	chain: string,
+	protocol: string,
+	runtime: RuntimeVenues = {},
+): SourceCapabilities {
+	const policy = venueSourcePolicy(chain, protocol, runtime);
 	if (!policy) throw new Error("Missing source policy");
 	if (policy.ingest === "self_built")
 		return {

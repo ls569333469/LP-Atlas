@@ -126,16 +126,24 @@ export const VENUE_CATALOG: readonly CatalogVenue[] = VENUE_SPECS.map((spec) => 
 	};
 });
 
-export function productCatalog(): ProductCatalog {
+export type RuntimeVenues = { solanaDlmm?: boolean };
+
+export function productCatalog(runtime: RuntimeVenues = {}): ProductCatalog {
 	return {
 		chains: CHAIN_CATALOG,
 		protocols: PROTOCOL_CATALOG,
-		venues: VENUE_CATALOG,
+		venues: runtime.solanaDlmm
+			? VENUE_CATALOG.map((venue) =>
+					venue.chain === "solana" && venue.protocol === "meteora_dlmm"
+						? { ...venue, status: VENUE_STATUS_ENABLED }
+						: venue,
+				)
+			: VENUE_CATALOG,
 	};
 }
 
-export function enabledVenues(): CatalogVenue[] {
-	return VENUE_CATALOG.filter((venue) => venue.status === VENUE_STATUS_ENABLED);
+export function enabledVenues(runtime: RuntimeVenues = {}): CatalogVenue[] {
+	return productCatalog(runtime).venues.filter((venue) => venue.status === VENUE_STATUS_ENABLED);
 }
 
 export function findChain(input: string | undefined): CatalogChain | undefined {
@@ -197,10 +205,13 @@ export type RefreshScope = {
 	protocol: string | null;
 };
 
-export function resolveRefreshScope(input: {
-	chain?: string;
-	protocol?: string;
-}): RefreshScope | { error: string } {
+export function resolveRefreshScope(
+	input: {
+		chain?: string;
+		protocol?: string;
+	},
+	runtime: RuntimeVenues = {},
+): RefreshScope | { error: string } {
 	const chainRaw = input.chain?.trim();
 	const protocolRaw = input.protocol?.trim();
 	const chain = chainRaw ? findChain(chainRaw) : undefined;
@@ -211,17 +222,22 @@ export function resolveRefreshScope(input: {
 	if (protocolRaw && !protocol) {
 		return { error: `未知协议：${protocolRaw}` };
 	}
-	if (chain && protocol && !isEnabledVenue(chain.id, protocol.id)) {
+	const runningVenues = enabledVenues(runtime);
+	if (
+		chain &&
+		protocol &&
+		!runningVenues.some((v) => v.chain === chain.id && v.protocol === protocol.id)
+	) {
 		return { error: `${chain.label} ${protocol.label} 已列入目录但尚未接入，不能刷新。` };
 	}
 	if (chain && !protocol) {
-		const enabled = enabledVenues().filter((venue) => venue.chain === chain.id);
+		const enabled = runningVenues.filter((venue) => venue.chain === chain.id);
 		if (enabled.length === 0) {
 			return { error: `${chain.label} 上还没有已启用的协议，不能刷新。` };
 		}
 	}
 	if (protocol && !chain) {
-		const enabled = enabledVenues().filter((venue) => venue.protocol === protocol.id);
+		const enabled = runningVenues.filter((venue) => venue.protocol === protocol.id);
 		if (enabled.length === 0) {
 			return { error: `${protocol.label} 尚未在已启用场所接入，不能刷新。` };
 		}

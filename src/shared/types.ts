@@ -12,7 +12,10 @@ import type { FeeDataStatus } from "./fee-quality.ts";
 /** Stable English protocol id, e.g. uniswap_v3. The enabled set comes from the server catalog. */
 export type ProtocolId = string;
 export type MetricSource = (typeof METRIC_SOURCES)[number];
-export type RpcSourceKind = typeof RPC_SOURCE_CONFIGURED | typeof RPC_SOURCE_PUBLIC_TEMPORARY;
+export type RpcSourceKind =
+	| typeof RPC_SOURCE_CONFIGURED
+	| typeof RPC_SOURCE_PUBLIC_TEMPORARY
+	| "official_index";
 export type SortField = (typeof BOARD_SORT_FIELDS)[number];
 export type SortDirection = "asc" | "desc";
 export type WindowId = (typeof BOARD_WINDOWS)[number]["id"];
@@ -42,10 +45,10 @@ export type MetricValue = {
 	reason?: string;
 };
 
-/** Legacy v1/v2 EVM wire contract. Non-EVM storage uses ChainRef; it is not coerced into this type. */
+/** EVM retains its numeric ID; Solana carries null and uses the row's catalog chain. */
 export type TokenRef = {
 	name?: string | null;
-	chainId: number;
+	chainId: number | null;
 	address: string;
 	symbol: string;
 	decimals: number;
@@ -72,13 +75,13 @@ export type PoolRiskNotice = {
 
 export type BoardRow = {
 	poolId: string;
-	chainId: number;
+	chainId: number | null;
 	chain: string;
 	protocol: ProtocolId;
 	pairLabel: string;
 	token0: TokenRef;
 	token1: TokenRef;
-	feeTierPips: number;
+	feeTierPips: number | null;
 	feeTierLabel: string;
 	hookType: string | null;
 	riskNotices?: PoolRiskNotice[];
@@ -96,6 +99,7 @@ export type BoardRow = {
 	capitalEfficiency: MetricValue;
 	poolAgeSeconds: MetricValue;
 	windows?: Record<WindowId, BoardWindowMetrics>;
+	officialPool?: { metadata: import("./meteora.ts").MeteoraPoolMetadata; asOf: string };
 };
 
 export type BoardMetricCondition = {
@@ -226,7 +230,7 @@ export type RefreshSuccessResponse = {
 	ok: true;
 	accepted?: false;
 	asOf: string;
-	blockNumber: string;
+	blockNumber: string | null;
 	rpcSource: RpcSourceInfo;
 	chainRpcSources: ChainRpcSource[];
 	discoveredPoolCount: VenuePoolCount[];

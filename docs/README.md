@@ -10,14 +10,14 @@
 | [02-decisions.md](01-product/02-decisions.md) | 已确定、暂缓、待确认清单与交接表 |
 | [03-templates.md](01-product/03-templates.md) | 四套集中流动性模板 |
 | [04-entry.md](01-product/04-entry.md) | 购买与开仓页（设计先写入，扫描验收后实现） |
-| [05-ui-preview.md](01-product/05-ui-preview.md) | 独立 HTML 预览说明与已验证交互范围，非生产完成状态 |
+| [05-前端HTML设计预览.md](01-product/05-前端HTML设计预览.md) | 独立 HTML 预览说明与已验证交互范围，非生产完成状态 |
 
 ## 02 架构
 
 | 文件 | 内容 |
 | --- | --- |
 | [01-dual-plane.md](02-architecture/01-dual-plane.md) | 热路径与旁路双平面、多链归一、接入通道 |
-| [02-four-layers.md](02-architecture/02-four-layers.md) | 四层技术架构、目录与架构图 |
+| [02-四层技术架构.md](02-architecture/02-四层技术架构.md) | 四层技术架构、目录与架构图 |
 | [03-protocol-coop.md](02-architecture/03-protocol-coop.md) | 多协议如何配合 |
 | [04-stack.md](02-architecture/04-stack.md) | 语言、SDK、仓库路径 |
 
@@ -52,7 +52,7 @@
 | [01-risks.md](05-operations/01-risks.md) | 技术风险与防范 |
 | [02-budget.md](05-operations/02-budget.md) | 延迟与新鲜度预算 |
 | [03-runtime.md](05-operations/03-runtime.md) | 第一期在哪运行、存储与上线原则 |
-| [04-prepare.md](05-operations/04-prepare.md) | 第一期你需要准备的节点与办理入口 |
+| [04-第一期准备事项.md](05-operations/04-第一期准备事项.md) | 第一期你需要准备的节点与办理入口 |
 | [05-retry-cache.md](05-operations/05-retry-cache.md) | 失败重试、跨链与兑换边界、存储与缓存 |
 | [06-elysium-acceptance-confirm.md](05-operations/06-elysium-acceptance-confirm.md) | Elysium 正式验收仍欠项：给 Codex 的确认清单（不替代 02-acceptance） |
 | [07-codex-handoff-2026-11-14.md](05-operations/07-codex-handoff-2026-11-14.md) | 2026-11-14 给 Codex 的工作交接：Robinhood 生产拉数 + Elysium 验收确认 |
@@ -67,6 +67,8 @@
 
 | [15-query-controls-and-funnel-design-2026-11-16.md](05-operations/15-query-controls-and-funnel-design-2026-11-16.md) | 三项准入、组合漏斗及排序统一设计；B中央弹窗已在现有主站实施，进度与验证范围见05唯一清单 |
 
+| [17-solana-venue-architecture-2026-11-20.md](05-operations/17-solana-venue-architecture-2026-11-20.md) | 2026-11-20 Solana 场所接入方案：先补非以太坊底座，第一批先 Meteora DLMM、再 Raydium CLMM；BSC 暂时不动；本轮只改标准，不启用生产扫描 |
+
 ## 06 实战手册
 
 | 文件 | 内容 |
@@ -75,6 +77,8 @@
 
 ## Solana基础更新
 
+- [19 · Meteora DLMM 指标补齐与问题复核](05-operations/19-Meteora-DLMM指标补齐与问题复核-2026-11-22.md)（2026-11-22，待Grok复核；手续费、APR、环比、价格、资金效率及生产加载问题；本轮仅文档）
+
 - [方案17 · 接入边界与S0审核](05-operations/17-solana-venue-architecture-2026-11-20.md)
-- [方案18 · 基础交接包](05-operations/18-solana-codex-foundation-2026-11-20.md)
+- [方案18 · 官方API主源接入与统一看板](05-operations/18-solana-codex-foundation-2026-11-20.md)（2026-11-22更新；原基础交接保留，当前合同见第0/12节）
 - [方案18 · S0/S1实际实施、测试与回滚边界](05-operations/18-solana-s0-s1-implementation-2026-11-21.md)（未部署、未扫描）

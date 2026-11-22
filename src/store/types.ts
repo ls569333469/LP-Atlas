@@ -131,6 +131,8 @@ export type StoredOfficialWindow = Omit<
 	lpFees0: null;
 	lpFees1: null;
 	swapCount: null;
+	reportedFeesUsd?: string | null;
+	reportedProtocolFeesUsd?: string | null;
 };
 export type StoredWindow = StoredNativeWindow | StoredOfficialWindow;
 export type StoredSolanaScannedHour = Omit<

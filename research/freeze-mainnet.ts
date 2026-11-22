@@ -715,7 +715,7 @@ async function writeCoverage(input: {
 		);
 	const report = `# 本地全集冻结覆盖报告
 
-日期：冻结时刻见 manifest.json（Asia/Shanghai）。本文件对应方案 [08-entry-signal-and-strategy.md](../../../docs/03-data/08-entry-signal-and-strategy.md) 第 6 节第 1 步。只读导出生产库已有完整小时，不重采已在库且完整的小时，不修改生产采集、默认过滤、定时扫描、看板 API 或钱包开仓，也不覆盖旧的 \`outputs/signal-research/\` 48 小时包。
+日期：冻结时刻见 manifest.json（Asia/Shanghai）。本文件对应方案 [08-入场信号与LP策略方案.md](../../../docs/03-data/08-入场信号与LP策略方案.md) 第 6 节第 1 步。只读导出生产库已有完整小时，不重采已在库且完整的小时，不修改生产采集、默认过滤、定时扫描、看板 API 或钱包开仓，也不覆盖旧的 \`outputs/signal-research/\` 48 小时包。
 
 ## 时间边界
 

@@ -9,6 +9,8 @@ dist/
 *.db-journal
 /data/
 /outputs/
+/agent-tools/
+/terminals/
 .pnpm-store/
 .vite/
 .cache/

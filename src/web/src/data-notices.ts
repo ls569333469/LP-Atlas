@@ -20,9 +20,11 @@ export function metricTooltip(
 		parts.push(
 			metric.reason === "previous_zero"
 				? "上一窗口手续费为 0"
-				: metric.feeStatus && !["estimated", "verified_zero"].includes(metric.feeStatus)
-					? "手续费数据暂不可用"
-					: "历史数据不足或暂未取得",
+				: metric.reason === "ordinary_lp_unverified"
+					? "普通LP收益尚未核实"
+					: metric.feeStatus && !["estimated", "verified_zero"].includes(metric.feeStatus)
+						? "手续费数据暂不可用"
+						: "历史数据不足或暂未取得",
 		);
 	}
 	if (!metric.complete) parts.push(hourIncomplete ? "当前小时尚未结束" : "数据尚未完整");
