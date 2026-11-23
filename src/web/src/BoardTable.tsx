@@ -16,6 +16,7 @@ import {
 	formatAge,
 	formatFeeApr,
 	formatFeeUsd,
+	formatPoolFee,
 	formatRatio,
 	formatSignedPercent,
 	formatUsd,
@@ -150,7 +151,7 @@ function rowCells(
 ): Array<{ id: string; content: ReactNode }> {
 	return [
 		{ id: "pair", content: <span className="pair">{row.pairLabel}</span> },
-		{ id: "feeTier", content: <span className="fee-tier">{row.feeTierLabel}</span> },
+		{ id: "feeTier", content: <span className="fee-tier">{formatPoolFee(row.feeTierLabel)}</span> },
 		{
 			id: "protocol",
 			content: <ProtocolCell protocol={row.protocol} hookType={row.hookType} />,

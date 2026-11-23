@@ -76,6 +76,24 @@ export type PoolRiskNotice = {
 	evidence?: { source: string; checkedAt: string; codeVersion: string; scope: string };
 };
 
+export type TokenFdv = {
+	fdvUsd: string;
+	priceObservedAt: string;
+	supplyObservedAt: string;
+	source: "redstone" | "stable_anchor" | "pool_derived" | "meteora";
+};
+
+export type FdvSide = "either" | "token0" | "token1" | "both";
+export type BoardValuationFilters = {
+	minFdvUsd?: string;
+	maxFdvUsd?: string;
+	fdvSide?: FdvSide;
+	minTickSpacing?: number;
+	maxTickSpacing?: number;
+	minSpacingBps?: number;
+	maxSpacingBps?: number;
+};
+
 export type BoardRow = {
 	poolId: string;
 	chainId: number | null;
@@ -84,9 +102,13 @@ export type BoardRow = {
 	pairLabel: string;
 	token0: TokenRef;
 	token1: TokenRef;
+	token0Fdv?: TokenFdv | null;
+	token1Fdv?: TokenFdv | null;
+	tickSpacing?: number | null;
 	feeTierPips: number | null;
 	feeTierLabel: string;
 	hookType: string | null;
+	hookAddress?: string | null;
 	riskNotices?: PoolRiskNotice[];
 	feeEntitlementNotice?: string;
 	tvlUsd: MetricValue;
@@ -112,7 +134,7 @@ export type BoardMetricCondition = {
 	value: string;
 };
 
-export type BoardFilters = {
+export type BoardFilters = BoardValuationFilters & {
 	dlmmFilters?: DlmmFilters;
 	hideLpRestrictions?: boolean;
 	minLpFees1hUsd?: string;

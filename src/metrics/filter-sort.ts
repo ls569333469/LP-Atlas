@@ -7,6 +7,7 @@ import {
 	DEFAULT_BOARD_SORT,
 } from "../shared/constants.ts";
 import { poolIdentity } from "../shared/pool-identity.ts";
+import { priceSpacingBps } from "../shared/format.ts";
 import type {
 	BoardFilters,
 	BoardMetricCondition,
@@ -43,6 +44,19 @@ function matchesSearch(row: BoardRow, search: string): boolean {
 	return haystacks.some((value) => value.toLowerCase().includes(needle));
 }
 
+export function matchesBoardVenue(
+	chain: string,
+	protocol: string,
+	filters: Pick<BoardFilters, "chain" | "chains" | "protocol" | "protocols">,
+): boolean {
+	return (
+		(!filters.chains?.length || filters.chains.includes(chain)) &&
+		(!filters.protocols?.length || filters.protocols.includes(protocol)) &&
+		(!filters.chain || chain === filters.chain) &&
+		(!filters.protocol || protocol === filters.protocol)
+	);
+}
+
 /**
  * Rows with missing TVL or window volume cannot be shown as having passed the
  * default thresholds. They are excluded, not filled from a neighbor window.
@@ -52,14 +66,7 @@ export function rowPassesFilters(
 	filters: BoardFilters,
 	requireLpFees = true,
 ): boolean {
-	if (filters.chains?.length && !filters.chains.includes(row.chain)) return false;
-	if (filters.protocols?.length && !filters.protocols.includes(row.protocol)) return false;
-	if (filters.chain && row.chain !== filters.chain) {
-		return false;
-	}
-	if (filters.protocol && row.protocol !== filters.protocol) {
-		return false;
-	}
+	if (!matchesBoardVenue(row.chain, row.protocol, filters)) return false;
 	if (filters.feeTierPips !== null && row.feeTierPips !== filters.feeTierPips) {
 		return false;
 	}
@@ -80,8 +87,41 @@ export function rowPassesFilters(
 	);
 }
 
+export function rowPassesValuationFilters(row: BoardRow, filters: BoardFilters): boolean {
+	if (filters.minSpacingBps !== undefined || filters.maxSpacingBps !== undefined) {
+		const spacing = priceSpacingBps(row);
+		if (spacing === null || spacing < (filters.minSpacingBps ?? 0) ||
+			spacing > (filters.maxSpacingBps ?? Infinity)) return false;
+	}
+	if (
+		(row.protocol === "uniswap_v3" || row.protocol === "uniswap_v4") &&
+		(filters.minTickSpacing !== undefined || filters.maxTickSpacing !== undefined)
+	) {
+		if (
+			row.tickSpacing == null ||
+			row.tickSpacing < (filters.minTickSpacing ?? 0) ||
+			row.tickSpacing > (filters.maxTickSpacing ?? Number.POSITIVE_INFINITY)
+		) return false;
+	}
+	if (filters.minFdvUsd === undefined && filters.maxFdvUsd === undefined) return true;
+	const matches = (value: string | undefined) => {
+		const amount = metricDecimal(value ?? null);
+		return amount !== null &&
+			(filters.minFdvUsd === undefined || amount.gte(filters.minFdvUsd)) &&
+			(filters.maxFdvUsd === undefined || amount.lte(filters.maxFdvUsd));
+	};
+	const first = matches(row.token0Fdv?.fdvUsd);
+	const second = matches(row.token1Fdv?.fdvUsd);
+	switch (filters.fdvSide) {
+		case "token0": return first;
+		case "token1": return second;
+		case "both": return first && second;
+		default: return first || second;
+	}
+}
+
 export function filterBoardRows(rows: readonly BoardRow[], filters: BoardFilters): BoardRow[] {
-	return rows.filter((row) => rowPassesFilters(row, filters));
+	return rows.filter((row) => rowPassesFilters(row, filters) && rowPassesValuationFilters(row, filters));
 }
 
 function sortMetric(row: BoardRow, field: SortField): Decimal | null {

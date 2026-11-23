@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { BIN_STEP_UNIT, PRICE_SPACING_LABEL } from "./constants.ts";
 
 export const DLMM_FILTERS = {
 	baseFee: [
@@ -6,7 +7,7 @@ export const DLMM_FILTERS = {
 		"池设置的基础交易收费比例，0.25 表示 0.25%。费用年化使用窗口费用和 TVL。",
 		"%",
 	],
-	binStep: ["分箱步长", "相邻价格分箱的间距，10 bps 等于 0.10%。", "bps"],
+	binStep: [PRICE_SPACING_LABEL, "相邻价格分箱之间的比例间距。10 基点（bps）等于 0.10%。", BIN_STEP_UNIT],
 	mode: ["费用收取模式", "随输入币按每笔交易的输入币收费；仅 Y 币在两个方向都收池里的 Y 币。"],
 	farm: ["农场激励", "Meteora 是否标记有额外的农场奖励。"],
 	side: ["筛选范围", "任一侧要求同一代币通过全部代币条件；两侧模式要求两个代币各自通过。"],

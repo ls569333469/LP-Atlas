@@ -1,10 +1,15 @@
 import {
+	BIN_STEP_UNIT,
 	BOARD_WINDOWS,
 	type BoardMetricCondition,
+	type BoardValuationFilters,
 	conditionToDisplay,
 	conditionToValue,
 	type DlmmFilters,
 	feeMetricLabel,
+	parseValuationFilters,
+	PRICE_SPACING_LABEL,
+	type VALUATION_FILTER_KEYS,
 	QUERY_METRICS,
 	type SortField,
 	type WindowId,
@@ -19,6 +24,7 @@ type DraftCondition = {
 	value: string;
 };
 export type QueryFilterDraft = {
+	valuationDraft: Record<(typeof VALUATION_FILTER_KEYS)[number], string>;
 	dlmmFilters: DlmmFilters;
 	hideLpRestrictions: boolean;
 	minTvlUsd: string;
@@ -26,7 +32,17 @@ export type QueryFilterDraft = {
 	minLpFees1hUsd: string;
 	conditions: DraftCondition[];
 };
+const emptyValuationDraft: QueryFilterDraft["valuationDraft"] = {
+	minFdvUsd: "",
+	maxFdvUsd: "",
+	fdvSide: "either",
+	minTickSpacing: "",
+	maxTickSpacing: "",
+	minSpacingBps: "",
+	maxSpacingBps: "",
+};
 export function filterDraft(input: {
+	valuation?: BoardValuationFilters;
 	dlmmFilters?: DlmmFilters;
 	hideLpRestrictions?: boolean;
 	minTvlUsd: string;
@@ -35,6 +51,15 @@ export function filterDraft(input: {
 	metricConditions: BoardMetricCondition[];
 }): QueryFilterDraft {
 	return {
+		valuationDraft: {
+			minFdvUsd: input.valuation?.minFdvUsd ?? "",
+			maxFdvUsd: input.valuation?.maxFdvUsd ?? "",
+			fdvSide: input.valuation?.fdvSide ?? "either",
+			minTickSpacing: String(input.valuation?.minTickSpacing ?? ""),
+			maxTickSpacing: String(input.valuation?.maxTickSpacing ?? ""),
+			minSpacingBps: String(input.valuation?.minSpacingBps ?? ""),
+			maxSpacingBps: String(input.valuation?.maxSpacingBps ?? ""),
+		},
 		dlmmFilters: input.dlmmFilters ?? {},
 		hideLpRestrictions: input.hideLpRestrictions ?? false,
 		minTvlUsd: input.minTvlUsd,
@@ -62,6 +87,47 @@ export function draftConditions(draft: QueryFilterDraft): BoardMetricCondition[]
 		}));
 }
 
+function RangeBound({
+	label,
+	metric,
+	unit,
+	step,
+	value,
+	onChange,
+}: {
+	label: string;
+	metric: string;
+	unit: string;
+	step: string;
+	value: string;
+	onChange(value: string): void;
+}) {
+	return (
+		<label>
+			{label}
+			<span className="query-number">
+				<input
+					aria-label={`${label}${metric}`}
+					type="number"
+					min="0"
+					step={step}
+					placeholder="不限"
+					value={value}
+					onChange={(event) => onChange(event.target.value)}
+				/>
+				<span>{unit}</span>
+			</span>
+		</label>
+	);
+}
+
+function withoutLegacySpacing(filters: DlmmFilters): DlmmFilters {
+	const next = { ...filters };
+	delete next.binStepMin;
+	delete next.binStepMax;
+	return next;
+}
+
 export function QueryFilterDialog(props: {
 	open: boolean;
 	reportedFees?: boolean;
@@ -76,6 +142,28 @@ export function QueryFilterDialog(props: {
 	const [error, setError] = useState("");
 	const [tab, setTab] = useState<"general" | "dlmm">("general");
 	const showDlmmFields = props.showDlmm && tab === "dlmm";
+	const legacySpacing =
+		props.draft.valuationDraft.minTickSpacing ||
+		props.draft.valuationDraft.maxTickSpacing ||
+		props.draft.dlmmFilters.binStepMin ||
+		props.draft.dlmmFilters.binStepMax;
+	const updateValuation = (key: keyof QueryFilterDraft["valuationDraft"], value: string) =>
+		props.onChange({
+			...props.draft,
+			valuationDraft: { ...props.draft.valuationDraft, [key]: value },
+		});
+	const updateSpacing = (key: "minSpacingBps" | "maxSpacingBps", value: string) => {
+		props.onChange({
+			...props.draft,
+			dlmmFilters: withoutLegacySpacing(props.draft.dlmmFilters),
+			valuationDraft: {
+				...props.draft.valuationDraft,
+				minTickSpacing: "",
+				maxTickSpacing: "",
+				[key]: value,
+			},
+		});
+	};
 	useEffect(() => {
 		if (props.open) dialog.current?.showModal();
 		else {
@@ -110,7 +198,7 @@ export function QueryFilterDialog(props: {
 			<div className="query-dialog-head">
 				<div>
 					<h2 id="query-dialog-title">筛选条件</h2>
-					<p>三项准入 · 八项指标 · 留空不限</p>
+					<p>基础准入 · 指标条件留空不限</p>
 				</div>
 				<button type="button" aria-label="关闭筛选条件" onClick={props.onClose}>
 					×
@@ -121,6 +209,7 @@ export function QueryFilterDialog(props: {
 					e.preventDefault();
 					try {
 						draftConditions(props.draft);
+						parseValuationFilters(props.draft.valuationDraft);
 						setError("");
 						props.onApply();
 					} catch (error) {
@@ -190,9 +279,9 @@ export function QueryFilterDialog(props: {
 								))}
 						</div>
 					</section>
-					<section>
+					<section aria-labelledby="query-metric-title">
 						<h3>
-							指标条件 <small>已填项同时满足</small>
+							<span id="query-metric-title">指标条件</span> <small>已填项同时满足</small>
 						</h3>
 						<div className="query-condition-head">
 							<span>指标</span>
@@ -273,6 +362,75 @@ export function QueryFilterDialog(props: {
 								</div>
 							);
 						})}
+						<fieldset className="query-metric-range">
+							<legend title="相邻可用价格档位的比例间距，100 基点等于 1%">
+								{PRICE_SPACING_LABEL}
+							</legend>
+							<div className="query-gates">
+								{(
+									[
+										["minSpacingBps", "最低"],
+										["maxSpacingBps", "最高"],
+									] as const
+								).map(([key, label]) => (
+									<RangeBound
+										key={key}
+										label={label}
+										metric={PRICE_SPACING_LABEL}
+										unit={BIN_STEP_UNIT}
+										step="0.0001"
+										value={props.draft.valuationDraft[key]}
+										onChange={(value) => updateSpacing(key, value)}
+									/>
+								))}
+							</div>
+							{legacySpacing ? (
+								<button
+									type="button"
+									className="query-link"
+									onClick={() =>
+										updateSpacing("minSpacingBps", props.draft.valuationDraft.minSpacingBps)
+									}
+								>
+									清除旧链接的档位条件
+								</button>
+							) : null}
+						</fieldset>
+						<fieldset className="query-metric-range">
+							<legend>
+								FDV <small>完全稀释估值</small>
+							</legend>
+							<div className="query-gates">
+								{(
+									[
+										["minFdvUsd", "最低"],
+										["maxFdvUsd", "最高"],
+									] as const
+								).map(([key, label]) => (
+									<RangeBound
+										key={key}
+										label={label}
+										metric=" FDV"
+										unit="美元"
+										step="any"
+										value={props.draft.valuationDraft[key]}
+										onChange={(value) => updateValuation(key, value)}
+									/>
+								))}
+								<label>
+									匹配代币
+									<select
+										value={props.draft.valuationDraft.fdvSide}
+										onChange={(event) => updateValuation("fdvSide", event.target.value)}
+									>
+										<option value="either">任一侧</option>
+										<option value="token0">第一侧（Token 0／X）</option>
+										<option value="token1">第二侧（Token 1／Y）</option>
+										<option value="both">两侧</option>
+									</select>
+								</label>
+							</div>
+						</fieldset>
 						<p className="query-input-note">留空不追加该条件，基础准入仍生效；0为有效数值。</p>
 						<button
 							type="button"
@@ -281,6 +439,8 @@ export function QueryFilterDialog(props: {
 								props.onChange({
 									...props.draft,
 									conditions: props.draft.conditions.map((c) => ({ ...c, value: "" })),
+									valuationDraft: emptyValuationDraft,
+									dlmmFilters: withoutLegacySpacing(props.draft.dlmmFilters),
 								})
 							}
 						>
@@ -295,7 +455,8 @@ export function QueryFilterDialog(props: {
 						onClick={() =>
 							props.onChange({
 								...props.draft,
-								dlmmFilters: props.showDlmm ? {} : props.draft.dlmmFilters,
+								valuationDraft: emptyValuationDraft,
+								dlmmFilters: props.showDlmm ? {} : withoutLegacySpacing(props.draft.dlmmFilters),
 								hideLpRestrictions: false,
 								minTvlUsd: "1000",
 								minWindowVolumeUsd: "100",

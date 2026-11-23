@@ -1,6 +1,17 @@
 import type { BoardSuccessResponse, HealthResponse, MetricValue } from "@lp-atlas/shared";
 import { formatTime } from "./format.ts";
 
+export function revisionForSelection(revision: string | undefined, chains: readonly string[]) {
+	if (revision === undefined || chains.length !== 1 || !revision.includes(":")) return revision;
+	const prefix = `${chains[0]}:`;
+	return (
+		revision
+			.split("|")
+			.find((entry) => entry.startsWith(prefix))
+			?.slice(prefix.length) ?? "idle"
+	);
+}
+
 export function refreshForSelection(
 	data: Pick<HealthResponse, "refresh" | "chainRpcSources">,
 	chains: readonly string[],
@@ -31,12 +42,12 @@ export function metricTooltip(
 	return parts.join(" · ");
 }
 
-export function userError(message: string): string {
+export function userError(message: string, fallback = "数据读取失败，请稍后重试。"): string {
 	if (/快照.*失效/.test(message)) return "数据版本已失效，请重试加载。";
 	if (/429|限流/.test(message)) return "数据源暂时繁忙，请稍后重试。";
 	if (/timeout|超时/i.test(message)) return "数据读取超时，请稍后重试。";
 	if (/空间|磁盘/.test(message)) return "存储空间不足，采集暂时停止。";
-	return "数据读取失败，请稍后重试。";
+	return fallback;
 }
 
 export function boardNotices(board: BoardSuccessResponse): string[] {

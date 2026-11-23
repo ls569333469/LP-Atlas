@@ -105,7 +105,6 @@ export function DlmmFilterFields(props: {
 			<p className="query-input-note">仅筛选 Solana DLMM 池，全部网络和 Solana 共用这些条件。</p>
 			<div className="query-gates dlmm-filter-grid">
 				{range("baseFee")}
-				{range("binStep")}
 				<fieldset className="dlmm-filter-range">
 					<legend>{hint("mode")}</legend>
 					<div>

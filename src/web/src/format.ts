@@ -1,3 +1,16 @@
+import { BIN_STEP_UNIT, DYNAMIC_FEE_LABEL } from "@lp-atlas/shared";
+
+export function formatPoolFee(label: string): string {
+	const dynamic = /^动态(费率)?(?=（|$)/.exec(label);
+	if (dynamic) return DYNAMIC_FEE_LABEL + label.slice(dynamic[0].length);
+	const fixed = /^(\d+)(?:\.(\d+))?%$/.exec(label);
+	return fixed ? `${fixed[1]}.${(fixed[2] ?? "").padEnd(2, "0")}%` : label;
+}
+
+export function formatPriceSpacing(value: number | null): string {
+	return value == null ? "—" : `${value} ${BIN_STEP_UNIT}`;
+}
+
 const usdFormats = {
 	large: new Intl.NumberFormat("zh-CN", {
 		style: "currency",

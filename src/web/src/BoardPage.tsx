@@ -5,29 +5,40 @@ import {
 	type BoardRefreshState,
 	type BoardRow,
 	type BoardSuccessResponse,
+	type BoardValuationFilters,
 	conditionToDisplay,
 	countDlmmFilters,
 	DEFAULT_BOARD_FILTERS,
 	DEFAULT_BOARD_SORT,
 	type DlmmFilters,
+	DYNAMIC_FEE_LABEL,
 	enabledVenues as defaultEnabledVenues,
 	feeMetricLabel,
 	feePercentToPips,
 	feePipsToInput,
 	parseDlmmFilters,
+	parseValuationFilters,
 	poolIdentity,
 	protocolLabel,
 	QUERY_METRICS,
 	RPC_SOURCE_PUBLIC_TEMPORARY,
 	type SortDirection,
 	type SortField,
+	VALUATION_FILTER_KEYS,
+	V4_DYNAMIC_FEE_FLAG,
 	type WindowId,
+	writeValuationFilters,
 } from "@lp-atlas/shared";
 import { type ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import { fetchBoard, fetchHealth, requestRefresh } from "./api.ts";
 import { BoardPagination } from "./BoardPagination.tsx";
 import { splitGaps } from "./BoardTable.tsx";
-import { boardNotices, refreshForSelection, userError } from "./data-notices.ts";
+import {
+	boardNotices,
+	refreshForSelection,
+	revisionForSelection,
+	userError,
+} from "./data-notices.ts";
 import { EntryPlaceholder } from "./EntryPlaceholder.tsx";
 import { formatClock, formatTime } from "./format.ts";
 import { draftConditions, filterDraft, QueryFilterDialog } from "./QueryFilterDialog.tsx";
@@ -40,6 +51,7 @@ type LoadState =
 	| { status: "error"; message: string; board: BoardSuccessResponse | null };
 
 type AppliedFilters = {
+	valuation: BoardValuationFilters;
 	dlmmFilters: DlmmFilters;
 	hideLpRestrictions: boolean;
 	minLpFees1hUsd: string;
@@ -53,6 +65,7 @@ type AppliedFilters = {
 };
 
 const INITIAL_FILTERS: AppliedFilters = {
+	valuation: {},
 	dlmmFilters: {},
 	hideLpRestrictions: false,
 	minLpFees1hUsd: DEFAULT_BOARD_FILTERS.minLpFees1hUsd,
@@ -125,17 +138,20 @@ function StatusStrip(props: {
 	board: BoardSuccessResponse | null;
 	loading: boolean;
 	refreshing: boolean;
+	sorting: boolean;
 }): ReactElement {
 	const { board } = props;
 	return (
 		<section className="status-strip" aria-live="polite">
 			<span>
 				<span className="status-dot" />{" "}
-				{props.loading
-					? "正在加载所选网络与条件，表格仍为原快照"
-					: props.refreshing
-						? "正在扫描，保留上次结果"
-						: "已载入快照"}
+				{props.sorting
+					? "正在排序，暂显示上一排序结果"
+					: props.loading
+						? "正在加载所选网络与条件，表格仍为原快照"
+						: props.refreshing
+							? "正在扫描，保留上次结果"
+							: "已载入快照"}
 			</span>
 			<span>
 				截止{" "}
@@ -217,8 +233,17 @@ function readLocation() {
 	} catch {
 		/* Invalid URL conditions are not used as editable numbers. */
 	}
+	let valuation: BoardValuationFilters = {};
+	try {
+		valuation = parseValuationFilters(Object.fromEntries(
+			VALUATION_FILTER_KEYS.filter((key) => params.has(key)).map((key) => [key, params.getAll(key).length === 1 ? params.get(key)! : params.getAll(key)]),
+		));
+	} catch {
+		/* Invalid URL ranges are omitted. */
+	}
 	const filters: AppliedFilters = {
 		...INITIAL_FILTERS,
+		valuation,
 		dlmmFilters,
 		hideLpRestrictions:
 			(params.get("hideLpRestrictions") ?? params.get("hideConfirmedLpRestrictions")) === "true",
@@ -265,7 +290,20 @@ export function BoardPage(): ReactElement {
 	const [sortField, setSortField] = useState<SortField>(initial.sortField);
 	const [sortDirection, setSortDirection] = useState<SortDirection>(initial.sortDirection);
 	const [state, setState] = useState<LoadState>({ status: "loading", board: null });
+	const loadedScope = state.board ? (state.board.appliedFilters.chains ?? []).join("|") : undefined;
+	const loadedRevision = state.board?.dataRevision;
+	const loadedCutoff = state.board?.asOf;
+	const activeScope = appliedFilters.chains.join("|");
+	const activePublication =
+		loadedScope === activeScope
+			? (revisionForSelection(loadedRevision, appliedFilters.chains) ?? loadedCutoff ?? undefined)
+			: undefined;
 	const [refreshing, setRefreshing] = useState(false);
+	const [refreshError, setRefreshError] = useState<{
+		message: string;
+		scope: string;
+		revision: string | undefined;
+	} | null>(null);
 	const [healthRefresh, setHealthRefresh] = useState<BoardRefreshState | null>(null);
 	const [page, setPage] = useState(initial.page);
 	const [pageSize, setPageSize] = useState(initial.pageSize);
@@ -290,6 +328,7 @@ export function BoardPage(): ReactElement {
 		(filters: AppliedFilters, window: WindowId, field: SortField, direction: SortDirection) => {
 			return {
 				filters: {
+					...filters.valuation,
 					dlmmFilters: filters.dlmmFilters,
 					hideLpRestrictions: filters.hideLpRestrictions,
 					minTvlUsd: filters.minTvlUsd,
@@ -350,6 +389,14 @@ export function BoardPage(): ReactElement {
 					return;
 				}
 				if (board.pagination) snapshotRef.current = { key, id: board.pagination.snapshotId };
+				const publication = revisionForSelection(board.dataRevision, filters.chains) ?? board.asOf;
+				setRefreshError((error) =>
+					error?.scope === filters.chains.join("|") &&
+					publication !== null &&
+					error.revision !== publication
+						? null
+						: error,
+				);
 				const refresh = refreshForSelection(board, filters.chains);
 				setHealthRefresh(refresh);
 				if (refresh.status === "running") {
@@ -394,11 +441,14 @@ export function BoardPage(): ReactElement {
 				const refresh = refreshForSelection(health, appliedFilters.chains);
 				setRefreshing(refresh.status === "running");
 				setHealthRefresh(refresh);
+				if (loadedScope !== undefined && loadedScope !== activeScope) return;
+				const healthRevision = revisionForSelection(health.dataRevision, appliedFilters.chains);
+				const boardRevision = revisionForSelection(loadedRevision, appliedFilters.chains);
 				const newer =
-					health.dataRevision !== undefined && state.board?.dataRevision !== undefined
-						? health.dataRevision !== state.board.dataRevision
-						: health.refresh.lastSuccessAt !== null &&
-							Date.parse(health.refresh.lastSuccessAt) !== Date.parse(state.board?.asOf ?? "");
+					healthRevision !== undefined && boardRevision !== undefined
+						? healthRevision !== boardRevision
+						: refresh.lastSuccessAt !== null &&
+							Date.parse(refresh.lastSuccessAt) !== Date.parse(loadedCutoff ?? "");
 				if (newer) {
 					snapshotRef.current = null;
 					setPage(1);
@@ -415,39 +465,39 @@ export function BoardPage(): ReactElement {
 			cancelled = true;
 			window.clearTimeout(timer);
 		};
-	}, [state.board?.asOf, state.board?.dataRevision, appliedFilters.chains]);
+	}, [loadedScope, loadedRevision, loadedCutoff, activeScope, appliedFilters.chains]);
 
 	async function onRefresh(): Promise<void> {
+		setRefreshError(null);
 		setRefreshing(true);
+		const scope = activeScope;
+		const revision = activePublication;
 		try {
 			const result = await requestRefresh();
 			if (!result.ok) {
 				setRefreshing(false);
-				setState((current) => ({
-					status: "error",
-					message: result.error,
-					board: current.board ?? null,
-				}));
-				return;
+				setRefreshError({ message: result.error, scope, revision });
 			}
 		} catch (error) {
 			setRefreshing(false);
-			setState((current) => ({
-				status: "error",
+			setRefreshError({
 				message: error instanceof Error ? error.message : "刷新失败。",
-				board: current.board ?? null,
-			}));
+				scope,
+				revision,
+			});
 		}
 	}
 
 	function onApply(): void {
 		const metricConditions = draftConditions(filterSettings);
 		const dlmmFilters = parseDlmmFilters(JSON.stringify(filterSettings.dlmmFilters));
-		setFilterSettings(filterDraft({ ...filterSettings, metricConditions, dlmmFilters }));
+		const valuation = parseValuationFilters(filterSettings.valuationDraft);
+		setFilterSettings(filterDraft({ ...filterSettings, metricConditions, dlmmFilters, valuation }));
 		setPage(1);
 		setAppliedFilters((current) => ({
 			...current,
 			dlmmFilters,
+			valuation,
 			minTvlUsd: filterSettings.minTvlUsd,
 			minWindowVolumeUsd: filterSettings.minWindowVolumeUsd,
 			minLpFees1hUsd: filterSettings.minLpFees1hUsd,
@@ -556,6 +606,13 @@ export function BoardPage(): ReactElement {
 		state.status !== "error" &&
 		board !== null &&
 		JSON.stringify(loadedChains) !== JSON.stringify(appliedFilters.chains);
+	const sorting =
+		loading &&
+		board !== null &&
+		!switchingChain &&
+		(board.sort.field !== sortField ||
+			board.sort.direction !== sortDirection ||
+			board.sort.window !== windowId);
 	const showPublicRpcWarning = board ? isPublicTemporary(board) : false;
 	const showDlmmFilters =
 		board?.appliedFilters.dlmmFilters !== undefined &&
@@ -564,6 +621,7 @@ export function BoardPage(): ReactElement {
 
 	useEffect(() => {
 		const params = new URLSearchParams();
+		writeValuationFilters(params, appliedFilters.valuation);
 		for (const chain of appliedFilters.chains) params.append("chains", chain);
 		for (const protocol of appliedFilters.protocols) params.append("protocols", protocol);
 		params.set("minTvlUsd", appliedFilters.minTvlUsd);
@@ -664,13 +722,17 @@ export function BoardPage(): ReactElement {
 	const coverageNote = windowCoverageNote(board, board?.sort.window ?? windowId);
 	const refreshInFlight = refreshing;
 	const currentRefresh = healthRefresh ?? board?.refresh;
+	const refreshErrorMessage =
+		refreshError?.scope === activeScope && refreshError.revision === activePublication
+			? refreshError.message
+			: null;
 	function changePage(next: number) {
 		setPage(next);
 		document.querySelector(".board-body")?.scrollIntoView({ block: "start" });
 	}
 	const pagination = board ? (
 		<BoardPagination
-			admissionSummary={`准入 TVL ≥ $${appliedFilters.minTvlUsd} · 1H 成交 ≥ $${appliedFilters.minWindowVolumeUsd}${appliedFilters.chains.length === 1 && appliedFilters.chains[0] === "solana" ? " · 官方候选" : ` · EVM 1H LP费 ≥ $${appliedFilters.minLpFees1hUsd}`}`}
+			admissionSummary={`准入 TVL ≥ $${board.appliedFilters.minTvlUsd} · 1H 成交 ≥ $${board.appliedFilters.minWindowVolumeUsd}${loadedChains.length === 1 && loadedChains[0] === "solana" ? " · 官方候选" : ` · EVM 1H LP费 ≥ $${board.appliedFilters.minLpFees1hUsd ?? DEFAULT_BOARD_FILTERS.minLpFees1hUsd}`}`}
 			board={board}
 			disabled={loading}
 			onPage={changePage}
@@ -701,13 +763,7 @@ export function BoardPage(): ReactElement {
 				</button>
 			</header>
 
-			{loading || refreshInFlight ? (
-				<div className="progress-rail" aria-hidden="true">
-					<span />
-				</div>
-			) : (
-				<div className="progress-rail progress-rail-idle" aria-hidden="true" />
-			)}
+			<div className="topbar-spacing" aria-hidden="true" />
 
 			<main>
 				<div className={`workspace-desk ${orderOpen ? "" : "order-collapsed"}`}>
@@ -831,7 +887,7 @@ export function BoardPage(): ReactElement {
 									autoComplete="off"
 									value={feeInput}
 									onChange={(e) => changeFee(e.target.value)}
-									placeholder={Number(appliedFilters.feeTierPips) === 8388608 ? "动态" : "全部"}
+									placeholder={Number(appliedFilters.feeTierPips) === V4_DYNAMIC_FEE_FLAG ? DYNAMIC_FEE_LABEL : "全部"}
 									aria-invalid={Boolean(feeError)}
 								/>
 								<span>%</span>
@@ -901,6 +957,8 @@ export function BoardPage(): ReactElement {
 								▽ 筛选条件{" "}
 								<b>
 									{appliedFilters.metricConditions.length +
+										Number(appliedFilters.valuation.minFdvUsd !== undefined || appliedFilters.valuation.maxFdvUsd !== undefined) +
+										Number(appliedFilters.valuation.minSpacingBps !== undefined || appliedFilters.valuation.maxSpacingBps !== undefined || appliedFilters.valuation.minTickSpacing !== undefined || appliedFilters.valuation.maxTickSpacing !== undefined) +
 										(showDlmmFilters ? countDlmmFilters(appliedFilters.dlmmFilters) : 0) +
 										Number(appliedFilters.hideLpRestrictions)}
 								</b>
@@ -1037,7 +1095,9 @@ export function BoardPage(): ReactElement {
 									: null}
 							</section>
 						) : null}
-						{state.status === "error" || currentRefresh?.status === "error" ? (
+						{state.status === "error" ||
+						refreshErrorMessage !== null ||
+						currentRefresh?.status === "error" ? (
 							<div className="rpc-banner rpc-banner-error" role="alert">
 								<span className="rpc-banner-label">
 									{state.status === "error" ? "查询失败" : "刷新失败"}
@@ -1046,7 +1106,8 @@ export function BoardPage(): ReactElement {
 									{userError(
 										state.status === "error"
 											? state.message
-											: (currentRefresh?.error ?? "刷新失败"),
+											: (refreshErrorMessage ?? currentRefresh?.error ?? "刷新失败"),
+										state.status === "error" ? undefined : "刷新失败，可点击「刷新」重试。",
 									)}
 									{board?.asOf
 										? ` 当前保留表格的数据截止 ${formatTime(board.asOf)}，未替换为本次新结果。`
@@ -1069,7 +1130,12 @@ export function BoardPage(): ReactElement {
 								{feeError}；列表保留上次有效费率条件。
 							</p>
 						) : null}
-						<StatusStrip board={board} loading={loading} refreshing={refreshInFlight} />
+						<StatusStrip
+							board={board}
+							loading={loading}
+							refreshing={refreshInFlight}
+							sorting={sorting}
+						/>
 
 						{showPublicRpcWarning && board ? (
 							<div className="rpc-banner" role="status">

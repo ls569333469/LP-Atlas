@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import type { Address, Log, PublicClient } from "viem";
 import { getAddress } from "viem";
 import { cacheBlockStates } from "../adapters/block-state-cache.ts";
@@ -22,6 +23,7 @@ import { findChain, type VenuePoolCount } from "../shared/catalog.ts";
 import { chainRef } from "../shared/chain-ref.ts";
 import {
 	CHAIN_ID_ELYSIUM,
+	DEFAULT_BOARD_FILTERS,
 	HOUR_SECONDS,
 	METRIC_SOURCE_SELF_BUILT,
 	ZERO_ADDRESS,
@@ -57,6 +59,7 @@ import {
 	upsertTokens,
 	upsertWindow,
 } from "../store/repositories.ts";
+import { saveEvmFdvPublication, type TokenPriceObservation } from "../store/token-fdv.ts";
 import type {
 	StoredScannedHour as AnyScannedHour,
 	StoredWindow as AnyStoredWindow,
@@ -389,12 +392,14 @@ export async function runRefreshPipeline(input: {
 			window: BlockBoundedWindow,
 			savedHours: StoredScannedHour[],
 			usdDeferrals?: Parameters<typeof deferUsdRepair>[1][],
+			fdvCandidates?: TokenPriceObservation[],
 		): Promise<void> => {
 			if (
 				await measurePhase(window, "checkpoint", () =>
 					commitHourCheckpoint(input.db, pendingWindows, pendingHours, window.startUnix, {
 						chain: chain.id,
 						usdDeferrals,
+						fdvCandidates,
 						runId,
 						savedHours,
 						gaps: refreshDiagnostics(gaps, warnings).gaps,
@@ -1257,6 +1262,37 @@ export async function runRefreshPipeline(input: {
 			const activeRows = pendingWindows.filter(
 				(row) => row.windowStart === startUnix && row.swapCount > 0,
 			);
+			let fdvCandidates: TokenPriceObservation[] | undefined;
+			if (window.toBlock === head.blockNumber) {
+				const addresses = new Set<string>();
+				for (const row of activeRows) {
+					if (
+						row.tvlUsd === null || row.volumeUsd === null || row.lpFeesUsd === null ||
+						new Decimal(row.tvlUsd).lt(DEFAULT_BOARD_FILTERS.minTvlUsd) ||
+						new Decimal(row.volumeUsd).lt(DEFAULT_BOARD_FILTERS.minWindowVolumeUsd) ||
+						new Decimal(row.lpFeesUsd).lt(DEFAULT_BOARD_FILTERS.minLpFees1hUsd)
+					) continue;
+					const pool = poolById.get(row.poolId);
+					if (!pool) continue;
+					addresses.add(pool.token0.toLowerCase());
+					addresses.add(pool.token1.toLowerCase());
+				}
+				const stable = new Set(pricePolicy.stable.map(normalizeTokenAddress));
+				fdvCandidates = [];
+				for (const address of addresses) {
+					const price = usdPrices.get(address);
+					const tokenDecimals = decimals.get(address);
+					if (address === ZERO_ADDRESS || tokenDecimals === undefined || !price?.isFinite() || price.lte(0)) continue;
+					const quote = pricePolicy.rootPrices?.has(address) ? pricePolicy.quote : undefined;
+					fdvCandidates.push({
+						address,
+						decimals: tokenDecimals,
+						priceUsd: price.toFixed(),
+						priceObservedAt: quote ? new Date(quote.publishedAt * 1000).toISOString() : hourAsOf,
+						source: quote ? "redstone" : stable.has(address) ? "stable_anchor" : "pool_derived",
+					});
+				}
+			}
 			const missingVolume = activeRows.filter((row) => row.volumeUsd === null).length;
 			const missingFees = activeRows.filter((row) => row.lpFeesUsd === null).length;
 			if (missingVolume || missingFees) {
@@ -1302,7 +1338,7 @@ export async function runRefreshPipeline(input: {
 				});
 			}
 			hoursWritten.push(window);
-			await checkpointHour(window, savedHours);
+			await checkpointHour(window, savedHours, undefined, fdvCandidates);
 			hourProgress("processed");
 		}
 
@@ -1451,6 +1487,7 @@ type HourCheckpointPublication = {
 	runId: number;
 	savedHours: StoredScannedHour[];
 	usdDeferrals?: Parameters<typeof deferUsdRepair>[1][];
+	fdvCandidates?: TokenPriceObservation[];
 	gaps: string[];
 	warnings: string[];
 	officialAsOf?: string;
@@ -1581,6 +1618,13 @@ export async function commitHourCheckpoint(
 					)
 				: undefined;
 			const publishedAsOf = publication.officialAsOf ?? newest!.asOf;
+			if (publication.fdvCandidates !== undefined) {
+				try {
+					await saveEvmFdvPublication(tx, publication.chain, publishedAsOf, publication.fdvCandidates);
+				} catch (error) {
+					console.warn(JSON.stringify({ event: "fdv_publication_failed", chain: publication.chain, error: errorText(error) }));
+				}
+			}
 			await tx.execute({
 				sql: `INSERT INTO chain_publications (chain, revision, run_id, block_number, block_time, published_at, official_discovery_as_of, source_observation)
 					VALUES (?, 1, ?, ?, ?, ?, ?, ?)

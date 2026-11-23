@@ -1,6 +1,13 @@
 import { protocolById } from "./catalog.ts";
 import { V4_DYNAMIC_FEE_FLAG } from "./constants.ts";
-import type { ProtocolId } from "./types.ts";
+import type { BoardRow, ProtocolId } from "./types.ts";
+
+export function priceSpacingBps(row: Pick<BoardRow, "protocol" | "tickSpacing" | "officialPool">): number | null {
+	if (row.protocol === "meteora_dlmm") return row.officialPool?.metadata.binStep ?? null;
+	if (row.tickSpacing == null || row.tickSpacing <= 0) return null;
+	// Round to the same precision used by the display and range filters.
+	return Number((10_000 * Math.expm1(row.tickSpacing * Math.log1p(0.0001))).toFixed(4));
+}
 
 export function isDynamicFeeTier(feePips: number): boolean {
 	return (feePips & V4_DYNAMIC_FEE_FLAG) !== 0;

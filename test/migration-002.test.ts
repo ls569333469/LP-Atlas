@@ -135,6 +135,8 @@ describe("migration 002_venue_keys", () => {
 			"013_usd_repair_deferrals.sql",
 			"014_chain_identity.sql",
 			"015_official_pool_details.sql",
+			"016_meteora_price_observations.sql",
+			"017_token_fdv.sql",
 		]);
 		const venueIndex = await db.execute("PRAGMA index_info(idx_pools_chain_protocol)");
 		expect(venueIndex.rows.map((row) => String(row.name))).toEqual(["chain_id", "protocol"]);

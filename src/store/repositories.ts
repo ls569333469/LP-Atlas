@@ -191,9 +191,14 @@ export async function upsertMeteoraMetadata(
 
 export async function listMeteoraMetadata(
 	db: Pick<AppDatabase, "execute">,
+	asOf: string,
 ): Promise<Map<string, { metadata: MeteoraPoolMetadata; asOf: string }>> {
-	const result = await db.execute(`SELECT pool_id, official_metadata, official_metadata_as_of
-		FROM pools WHERE chain_key='solana' AND protocol='meteora_dlmm' AND official_metadata IS NOT NULL`);
+	const result = await db.execute({
+		sql: `SELECT pool_id, official_metadata, official_metadata_as_of
+			FROM pools WHERE chain_key='solana' AND protocol='meteora_dlmm'
+			AND official_metadata_as_of = ? AND official_metadata IS NOT NULL`,
+		args: [asOf],
+	});
 	return new Map(
 		result.rows.map((row) => [
 			String(row.pool_id),

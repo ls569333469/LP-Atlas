@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { formatHookType } from "../adapters/hooks.ts";
+import { formatHookType, hasHook } from "../adapters/hooks.ts";
 import { knownToken } from "../adapters/tokens.ts";
 import { composeFromHours, missingHourCount } from "../metrics/compose-windows.ts";
 import {
@@ -15,6 +15,7 @@ import {
 	parseBoardSort,
 	rowPassesFilters,
 	rowPassesMetricConditions,
+	rowPassesValuationFilters,
 	sortBoardRows,
 } from "../metrics/filter-sort.ts";
 import {
@@ -38,6 +39,7 @@ import type {
 	BoardResponse,
 	BoardRow,
 	BoardSuccessResponse,
+	BoardValuationFilters,
 	BoardWindowMeta,
 	BoardWindowMetrics,
 	ChainRpcSource,
@@ -59,6 +61,7 @@ import {
 	listTokensForPools,
 	listWindowsInRange,
 } from "../store/repositories.ts";
+import { readEvmFdvPublication } from "../store/token-fdv.ts";
 import type {
 	StoredToken as AnyStoredToken,
 	StoredEvmPool as StoredPool,
@@ -120,7 +123,7 @@ export type BoardReadInput = {
 	rpcSource: RpcSourceInfo;
 	chainRpcSources: ChainRpcSource[];
 	legacyWindowFilter?: boolean;
-	query: {
+	query: BoardValuationFilters & {
 		dlmmFilters?: DlmmFilters;
 		hideLpRestrictions?: boolean;
 		minLpFees1hUsd?: string;
@@ -210,6 +213,14 @@ async function readBoardSnapshot(
 	});
 	if (input.query.chains) filters.chains = input.query.chains;
 	if (input.query.protocols) filters.protocols = input.query.protocols;
+	const { minFdvUsd, maxFdvUsd, fdvSide, minTickSpacing, maxTickSpacing } = input.query;
+	if (minFdvUsd !== undefined) filters.minFdvUsd = minFdvUsd;
+	if (maxFdvUsd !== undefined) filters.maxFdvUsd = maxFdvUsd;
+	if (fdvSide !== undefined) filters.fdvSide = fdvSide;
+	if (minTickSpacing !== undefined) filters.minTickSpacing = minTickSpacing;
+	if (maxTickSpacing !== undefined) filters.maxTickSpacing = maxTickSpacing;
+	if (input.query.minSpacingBps !== undefined) filters.minSpacingBps = input.query.minSpacingBps;
+	if (input.query.maxSpacingBps !== undefined) filters.maxSpacingBps = input.query.maxSpacingBps;
 	const allWindows =
 		input.query.includeWindows === "all" || Boolean(filters.metricConditions?.length);
 	const sort = parseBoardSort({
@@ -391,6 +402,9 @@ async function readBoardSnapshot(
 		.filter(isEvmPool)
 		.filter((pool) => chainByEvmId(pool.chainId)?.id === input.readChain);
 	const tokens = tokenMap(await listTokensForPools(input.db, candidateIds));
+	const fdv = !input.legacyWindowFilter
+		? await readEvmFdvPublication(input.db, input.readChain, lastSuccess.blockTime)
+		: {};
 	const rows: BoardRow[] = [];
 	let rowCountBeforeFilter = 0;
 	const admitted: Array<{
@@ -524,6 +538,15 @@ async function readBoardSnapshot(
 			risks.riskNotices?.some((notice) => notice.kind === "entry" || notice.kind === "exit")
 		)
 			continue;
+		if (!input.legacyWindowFilter) {
+			selected = {
+				...selected,
+				tickSpacing: pool.tickSpacing,
+				token0Fdv: fdv[pool.token0.toLowerCase()] ?? null,
+				token1Fdv: fdv[pool.token1.toLowerCase()] ?? null,
+			};
+			if (!rowPassesValuationFilters(selected, filters)) continue;
+		}
 		rows.push({
 			...(allWindows ? { ...selected, windows: windowMetrics } : selected),
 			...risks,
@@ -611,6 +634,7 @@ function toRow(input: {
 			dynamic: isDynamicFeeTier(input.pool.feePips),
 		}),
 		hookType: formatHookType(input.pool.hooks),
+		hookAddress: hasHook(input.pool.hooks) ? input.pool.hooks : null,
 		tvlUsd: metric(tvl, true),
 		volumeUsd: metric(volume),
 		feesUsd: feeMetric(fees),

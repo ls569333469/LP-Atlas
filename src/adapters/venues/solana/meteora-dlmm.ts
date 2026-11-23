@@ -9,6 +9,8 @@ import { createPlaceholderAdapter, createReadyAdapter } from "../../venue-adapte
 
 const ORIGIN = "https://dlmm.datapi.meteora.ag";
 const HOUR = 3600;
+const METEORA_REQUEST_TIMEOUT_MS = 60_000;
+const METEORA_MAX_RETRY_COOLDOWN_MS = 18_000;
 export const METEORA_HISTORY_SCHEMA = "datapi-volume-history-candidate-v1";
 type ReadOptions = {
 	fetchImpl?: typeof fetch;
@@ -17,7 +19,21 @@ type ReadOptions = {
 	sortBy?: string;
 	budget?: MeteoraRequestBudget;
 	onInvalidPool?: (message: string) => void;
+	requestTimings?: MeteoraRequestTimings;
 	now?: () => Date;
+};
+
+export type MeteoraRequestTimings = {
+	requests: number;
+	retries: number;
+	rateLimited: number;
+	timeouts: number;
+	lateResponses: number;
+	queueMs: number;
+	httpMs: number;
+	maxHttpMs: number;
+	parseMs: number;
+	bytes: number;
 };
 
 export type { MeteoraPoolMetadata } from "../../../shared/meteora.ts";
@@ -80,10 +96,34 @@ const sharedBudget = new MeteoraRequestBudget();
 
 async function queryMeteora(url: URL, options: ReadOptions): Promise<unknown> {
 	const budget = options.budget ?? sharedBudget;
+	const timings = options.requestTimings;
+	const requestOptions = {
+		fetchImpl: options.fetchImpl,
+		timeoutMs: options.timeoutMs ?? METEORA_REQUEST_TIMEOUT_MS,
+	};
 	for (let attempt = 0; ; attempt++) {
+		const queued = performance.now();
 		try {
-			return await budget.run(() => queryOfficialJson(url, options));
+			return await budget.run(() => {
+				if (!timings) return queryOfficialJson(url, requestOptions);
+				timings.requests++;
+				if (attempt > 0) timings.retries++;
+				timings.queueMs += performance.now() - queued;
+				return queryOfficialJson(url, {
+					...requestOptions,
+					onRequestTiming: ({ httpMs, parseMs, bytes, timedOut, lateResponse }) => {
+						timings.httpMs += httpMs;
+						timings.maxHttpMs = Math.max(timings.maxHttpMs, httpMs);
+						timings.parseMs += parseMs;
+						timings.bytes += bytes;
+						if (timedOut) timings.timeouts++;
+						if (lateResponse) timings.lateResponses++;
+					},
+				});
+			});
 		} catch (error) {
+			if (timings && error instanceof OfficialIndexError && error.code === "index_rate_limited")
+				timings.rateLimited++;
 			if (
 				!(error instanceof OfficialIndexError) ||
 				(error.code !== "index_rate_limited" && error.code !== "index_down") ||
@@ -92,7 +132,7 @@ async function queryMeteora(url: URL, options: ReadOptions): Promise<unknown> {
 				throw error;
 			const delay = Math.max(500, error.retryAfterMs ?? 0);
 			// A long server cooldown ends this request instead of holding the chain indefinitely.
-			if (delay > (options.timeoutMs ?? 18_000)) throw error;
+			if (delay > (options.timeoutMs ?? METEORA_MAX_RETRY_COOLDOWN_MS)) throw error;
 			budget.defer(delay);
 		}
 	}

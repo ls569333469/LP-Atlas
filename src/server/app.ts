@@ -32,6 +32,7 @@ import {
 import { type AutoScanConfig, createAutoScanner, scanStorageBlockReason } from "./auto-scan.ts";
 import { BoardPageError, createBoardPager } from "./board-pages.ts";
 import { parseBoardMetricFilters, parseBoardSelection } from "./board-query.ts";
+import { startTokenSupplyTask } from "./token-supply.ts";
 
 export function chainRpcSourcesFor(rpc: ElysiumRpc, robinhoodRpc?: ElysiumRpc): ChainRpcSource[] {
 	return [
@@ -121,6 +122,7 @@ export function buildApp(input: {
 								return await runMeteoraRefresh({
 									db: input.db,
 									config: input.solanaDlmm!,
+									onTimings: (summary) => app.log.info({ event: "meteora_refresh", ...summary }),
 									checkStorage: input.autoScan
 										? () => scanStorageBlockReason(input.autoScan!.databasePath, input.autoScan!)
 										: undefined,
@@ -203,9 +205,20 @@ export function buildApp(input: {
 				log: (state) => app.log.info({ autoScan: state }, "automatic scan"),
 			})
 		: undefined;
-	app.addHook("onListen", async () => autoScanner?.start());
+	let stopTokenSupply: ReturnType<typeof startTokenSupplyTask> | undefined;
+	app.addHook("onListen", async () => {
+		autoScanner?.start();
+		if (!autoScanConfig?.enabled) return;
+		stopTokenSupply = startTokenSupplyTask({
+			db: input.db,
+			chains: targets.flatMap(({ chain, rpc }) => rpc ? [{ chain, client: rpc.client }] : []),
+			isScanning: (chain) => [...activeScopes].some((scope) => scopesOverlap(scope, `${chain}:*`)),
+			onBatch: (chain, attempted, saved) => app.log.info({ event: "fdv_supply_batch", chain, attempted, saved }),
+			onError: (chain, error) => app.log.warn({ event: "fdv_supply_failed", chain, message: errorText(error) }),
+		});
+	});
 	app.addHook("onClose", async () => {
-		await autoScanner?.stop();
+		await Promise.all([autoScanner?.stop(), stopTokenSupply?.()]);
 		await Promise.allSettled([...refreshByScope.values()]);
 		input.rpc.close?.();
 		input.robinhoodRpc?.close?.();

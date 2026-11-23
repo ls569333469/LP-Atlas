@@ -45,10 +45,6 @@ export function EntryPlaceholder(props: {
 			{props.row ? (
 				<div className="order-context-placeholders">
 					<details>
-						<summary>价格与流动性 · 待开发</summary>
-						<p>价格曲线、流动性分布及区间叠加尚未接入。</p>
-					</details>
-					<details>
 						<summary>该池已有头寸 · 待开发</summary>
 						<p>连接钱包后的区间、库存与未领手续费尚未接入。</p>
 					</details>

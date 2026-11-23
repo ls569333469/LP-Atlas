@@ -4,6 +4,7 @@ import {
 	METEORA_HISTORY_SCHEMA,
 	type MeteoraHistoryBatch,
 	type MeteoraRequestBudget,
+	type MeteoraRequestTimings,
 	meteoraCandidateWindows,
 	readMeteoraCandidates,
 	readMeteoraHistory,
@@ -12,7 +13,7 @@ import type { MeteoraPoolMetadata } from "../shared/meteora.ts";
 import { solanaPoolStorageKey } from "../shared/pool-identity.ts";
 import type { RpcSourceInfo } from "../shared/types.ts";
 import type { AppDatabase } from "../store/db.ts";
-import { finishRefreshRun, insertRefreshRun, listWindowsInRange } from "../store/repositories.ts";
+import { finishRefreshRun, insertRefreshRun } from "../store/repositories.ts";
 import type { StoredOfficialWindow, StoredSolanaScannedHour } from "../store/types.ts";
 import { commitHourCheckpoint } from "./refresh-pipeline.ts";
 
@@ -33,6 +34,9 @@ export async function runMeteoraRefresh(input: {
 	db: AppDatabase;
 	config: MeteoraRefreshConfig;
 	checkStorage?: () => Promise<string | null>;
+	onTimings?: (
+		summary: Record<string, number | string | Record<string, MeteoraRequestTimings>>,
+	) => void;
 }) {
 	const started = Date.now();
 	createMeteoraAdapter(true).assertCanRefresh();
@@ -56,6 +60,21 @@ export async function runMeteoraRefresh(input: {
 		scopeProtocol: "meteora_dlmm",
 	});
 	const options = { fetchImpl: input.config.fetchImpl, budget: input.config.budget };
+	const emptyRequestTimings = (): MeteoraRequestTimings => ({
+		requests: 0,
+		retries: 0,
+		rateLimited: 0,
+		timeouts: 0,
+		lateResponses: 0,
+		queueMs: 0,
+		httpMs: 0,
+		maxHttpMs: 0,
+		parseMs: 0,
+		bytes: 0,
+	});
+	const discoveryRequests = emptyRequestTimings();
+	const warmRequests = emptyRequestTimings();
+	const historyRequests = emptyRequestTimings();
 	const gaps: string[] = [];
 	const warnings: string[] = [];
 	const recordMissingHours = (pool: MeteoraPoolMetadata, batch: MeteoraHistoryBatch) => {
@@ -73,12 +92,32 @@ export async function runMeteoraRefresh(input: {
 	let published = false;
 	let pools: MeteoraPoolMetadata[] = [];
 	const timings: Record<string, number> = {};
+	let historyAttempted = 0;
+	let checkpointCount = 0;
+	let checkpointMs = 0;
+	let deferredHistory = 0;
+	const reportTimings = (status: string) =>
+		input.onTimings?.({
+			runId,
+			status,
+			candidates: pools.length,
+			historyAttempted,
+			windowsBuilt,
+			gaps: gaps.length,
+			deferredHistory,
+			checkpointCount,
+			checkpointMs,
+			requests: { discovery: discoveryRequests, warm: warmRequests, history: historyRequests },
+			durationMs: Date.now() - started,
+			...timings,
+		});
 	try {
 		const storageError = await input.checkStorage?.();
 		if (storageError) throw new Error(storageError);
 		const discoveryStarted = Date.now();
 		pools = await readMeteoraCandidates({
 			...options,
+			requestTimings: discoveryRequests,
 			now: input.config.now,
 			onInvalidPool: (message) => gaps.push(message),
 		});
@@ -93,7 +132,10 @@ export async function runMeteoraRefresh(input: {
 					const pool = pools[cursor++];
 					if (!pool) break;
 					try {
-						const batch = await readMeteoraHistory(pool.address, H - 7200, H + 3600, options);
+						const batch = await readMeteoraHistory(pool.address, H - 7200, H + 3600, {
+							...options,
+							requestTimings: warmRequests,
+						});
 						recordMissingHours(pool, batch);
 						warm.push(...meteoraCandidateWindows(batch));
 					} catch (error) {
@@ -129,6 +171,7 @@ export async function runMeteoraRefresh(input: {
 			const starts = [...new Set(windows.map((w) => w.windowStart))].sort((a, b) => b - a);
 			if (directory && !starts.includes(H)) starts.unshift(H);
 			for (const start of starts) {
+				const checkpointStarted = Date.now();
 				await commitHourCheckpoint(input.db, windows, hours, start, {
 					chain: "solana",
 					runId,
@@ -153,20 +196,27 @@ export async function runMeteoraRefresh(input: {
 							}
 						: {}),
 				});
+				checkpointCount++;
+				checkpointMs += Date.now() - checkpointStarted;
 				published = true;
+				if (directory && start === H) timings.currentPublishedMs = Date.now() - started;
 			}
 		};
 		windowsBuilt += warm.length;
+		timings.warmFetchMs = Date.now() - warmStarted;
 		await commit(warm, true);
-		timings.currentPublishedMs = Date.now() - started;
 		timings.warmMs = Date.now() - warmStarted;
 		const historicalStarted = Date.now();
-		const existing = await listWindowsInRange(input.db, H - 96 * 3600, H, "solana");
-		const covered = new Set(
-			existing
-				.filter((w) => w.sourceObservation?.coverage === "reported_hour")
-				.map((w) => `${w.poolId}:${w.windowStart}`),
-		);
+		const existing = await input.db.execute({
+			// Start from the Solana directory instead of scanning the shared time index.
+			sql: `SELECT w.pool_id, w.window_start
+				FROM pools p CROSS JOIN window_aggregates w ON w.pool_id = p.pool_id
+				WHERE p.chain_key = 'solana' AND w.window_start >= ? AND w.window_start < ?
+				AND CASE WHEN json_valid(w.source_observation)
+					THEN json_extract(w.source_observation, '$.coverage') = 'reported_hour' ELSE 0 END`,
+			args: [H - 96 * 3600, H],
+		});
+		const covered = new Set(existing.rows.map((row) => `${row.pool_id}:${row.window_start}`));
 		const pendingHistory = pools.filter((pool) => {
 			const key = solanaPoolStorageKey("meteora_dlmm", pool.address);
 			const start = Math.max(
@@ -177,13 +227,16 @@ export async function runMeteoraRefresh(input: {
 			return false;
 		});
 		const needsHistory = pendingHistory.slice(0, coldLimit);
-		let historyAttempted = 0;
+		timings.coverageMs = Date.now() - historicalStarted;
 		for (let i = 0; i < needsHistory.length; i += 8) {
 			if (Date.now() >= deadline) break;
 			const results = await Promise.allSettled(
 				needsHistory.slice(i, i + 8).map(async (pool) => {
 					historyAttempted++;
-					const batch = await readMeteoraHistory(pool.address, H - 96 * 3600, H, options);
+					const batch = await readMeteoraHistory(pool.address, H - 96 * 3600, H, {
+						...options,
+						requestTimings: historyRequests,
+					});
 					recordMissingHours(pool, batch);
 					return meteoraCandidateWindows(batch).filter(
 						(w) => pool.createdAtUnix === null || w.windowEnd > pool.createdAtUnix,
@@ -203,13 +256,14 @@ export async function runMeteoraRefresh(input: {
 			}
 			await commit(successful);
 		}
-		const deferredHistory = pendingHistory.length - historyAttempted;
+		deferredHistory = pendingHistory.length - historyAttempted;
 		if (deferredHistory > 0)
 			warnings.push(
 				`pending_backfill: ${deferredHistory} 池历史待补，本轮预算未处理，不代表源缺档`,
 			);
 		timings.historyMs = Date.now() - historicalStarted;
 		const cutoff = H - 96 * 3600;
+		const pruneStarted = Date.now();
 		const prune = await input.db.transaction("write");
 		try {
 			await prune.execute({
@@ -224,6 +278,7 @@ export async function runMeteoraRefresh(input: {
 		} finally {
 			prune.close();
 		}
+		timings.pruneMs = Date.now() - pruneStarted;
 		const counts = [
 			{ chain: "solana", evmChainId: null, protocol: "meteora_dlmm", count: pools.length },
 		];
@@ -237,6 +292,7 @@ export async function runMeteoraRefresh(input: {
 			gaps: JSON.stringify(gaps),
 			warnings: JSON.stringify(warnings),
 		});
+		reportTimings(gaps.length ? "partial" : "ok");
 		return {
 			ok: true as const,
 			asOf,
@@ -259,6 +315,7 @@ export async function runMeteoraRefresh(input: {
 			gaps: JSON.stringify(gaps),
 			warnings: JSON.stringify(warnings),
 		});
+		reportTimings(published ? "partial" : "error");
 		throw error;
 	}
 }

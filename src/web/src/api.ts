@@ -6,7 +6,7 @@ import type {
 	RefreshRequest,
 	RefreshResponse,
 } from "@lp-atlas/shared";
-import { DEFAULT_BOARD_FILTERS, DEFAULT_BOARD_SORT } from "@lp-atlas/shared";
+import { DEFAULT_BOARD_FILTERS, DEFAULT_BOARD_SORT, writeValuationFilters } from "@lp-atlas/shared";
 
 async function readJson<T>(response: Response): Promise<T> {
 	if (!response.ok) {
@@ -48,6 +48,7 @@ export async function fetchBoard(input?: {
 		window: sort?.window ?? DEFAULT_BOARD_SORT.window,
 	});
 	if (filters?.hideLpRestrictions) params.set("hideLpRestrictions", "true");
+	if (filters) writeValuationFilters(params, filters);
 	if (filters?.minLpFees1hUsd !== undefined) params.set("minLpFees1hUsd", filters.minLpFees1hUsd);
 	if (filters?.metricConditions?.length)
 		params.set("metricConditions", JSON.stringify(filters.metricConditions));

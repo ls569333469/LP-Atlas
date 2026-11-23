@@ -36,7 +36,18 @@ export class OfficialIndexError extends Error {
 /** Bounded REST reads for official indexes; the deadline also covers the response body. */
 export async function queryOfficialJson(
 	url: URL,
-	options: { fetchImpl?: typeof fetch; timeoutMs?: number; maxBytes?: number } = {},
+	options: {
+		fetchImpl?: typeof fetch;
+		timeoutMs?: number;
+		maxBytes?: number;
+		onRequestTiming?: (timing: {
+			httpMs: number;
+			parseMs: number;
+			bytes: number;
+			timedOut: boolean;
+			lateResponse: boolean;
+		}) => void;
+	} = {},
 ): Promise<unknown> {
 	const controller = new AbortController();
 	const timeoutMs = options.timeoutMs ?? 18_000;
@@ -48,13 +59,36 @@ export async function queryOfficialJson(
 		maxBytes <= 0
 	)
 		throw new Error("Invalid official index request budget");
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	try {
+	const started = performance.now();
+	let parseStarted: number | undefined;
+	let bytes = 0;
+	let timedOut = false;
+	let lateResponse = false;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeoutError = new OfficialIndexError("index_down", "Official index request timed out");
+	const expire = () => {
+		timedOut = true;
+		controller.abort();
+	};
+	const deadline = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => {
+			expire();
+			reject(timeoutError);
+		}, timeoutMs);
+	});
+	const checkResponseDeadline = () => {
+		if (!timedOut && performance.now() - started < timeoutMs) return;
+		lateResponse = true;
+		if (!timedOut) expire();
+		throw timeoutError;
+	};
+	const read = async () => {
 		const response = await (options.fetchImpl ?? fetch)(url, {
 			signal: controller.signal,
 			headers: { accept: "application/json" },
 			redirect: "error",
 		});
+		checkResponseDeadline();
 		if (!response.ok) {
 			const retryAfter = response.headers.get("retry-after");
 			const retryAfterMs =
@@ -73,10 +107,10 @@ export async function queryOfficialJson(
 		const reader = response.body?.getReader();
 		if (!reader) throw new OfficialIndexError("index_response", "Missing official index body");
 		const chunks: Uint8Array[] = [];
-		let bytes = 0;
 		try {
 			for (;;) {
 				const next = await reader.read();
+				checkResponseDeadline();
 				if (next.done) break;
 				bytes += next.value.byteLength;
 				if (bytes > maxBytes) {
@@ -88,18 +122,36 @@ export async function queryOfficialJson(
 		} finally {
 			reader.releaseLock();
 		}
+		let data: unknown;
 		try {
-			return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+			parseStarted = performance.now();
+			data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
 		} catch (cause) {
 			throw new OfficialIndexError("index_response", "Invalid official index JSON", { cause });
 		}
+		checkResponseDeadline();
+		return data;
+	};
+	try {
+		return await Promise.race([read(), deadline]);
 	} catch (cause) {
+		if (timedOut) throw timeoutError;
 		if (cause instanceof OfficialIndexError) throw cause;
 		throw new OfficialIndexError("index_down", "Official index request failed or timed out", {
 			cause,
 		});
 	} finally {
 		clearTimeout(timer);
+		if (options.onRequestTiming) {
+			const finished = performance.now();
+			options.onRequestTiming({
+				httpMs: (parseStarted ?? finished) - started,
+				parseMs: parseStarted === undefined ? 0 : finished - parseStarted,
+				bytes,
+				timedOut,
+				lateResponse,
+			});
+		}
 	}
 }
 

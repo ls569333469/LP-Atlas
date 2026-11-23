@@ -2,7 +2,8 @@ import Decimal from "decimal.js";
 import { findChain, findProtocol } from "../shared/catalog.ts";
 import { BOARD_SORT_FIELDS, BOARD_WINDOWS } from "../shared/constants.ts";
 import { type DlmmFilters, parseDlmmFilters } from "../shared/dlmm-filters.ts";
-import type { BoardMetricCondition } from "../shared/types.ts";
+import type { BoardMetricCondition, BoardValuationFilters } from "../shared/types.ts";
+import { parseValuationFilters } from "../shared/valuation-filters.ts";
 import { BoardPageError } from "./board-pages.ts";
 
 type Query = Record<string, string | string[] | undefined>;
@@ -43,13 +44,13 @@ export function parseBoardSelection(query: Query): {
 }
 
 /** Validate the additional v2 filters at the HTTP boundary. Values use stored metric units. */
-export function parseBoardMetricFilters(query: Query): {
+export function parseBoardMetricFilters(query: Query): BoardValuationFilters & {
 	dlmmFilters?: DlmmFilters;
 	hideLpRestrictions?: boolean;
 	minLpFees1hUsd?: string;
 	metricConditions?: BoardMetricCondition[];
 } {
-	const result: {
+	const result: BoardValuationFilters & {
 		dlmmFilters?: DlmmFilters;
 		hideLpRestrictions?: boolean;
 		minLpFees1hUsd?: string;
@@ -132,5 +133,10 @@ export function parseBoardMetricFilters(query: Query): {
 			})
 			.sort((a, b) => BOARD_SORT_FIELDS.indexOf(a.field) - BOARD_SORT_FIELDS.indexOf(b.field));
 	}
-	return result;
+	try {
+		return { ...result, ...parseValuationFilters(query) };
+	} catch (error) {
+		throw new BoardPageError(400, error instanceof Error ? error.message : "估值筛选条件无效");
+	}
+
 }

@@ -41,6 +41,9 @@ export const UNISWAP_V4_ELYSIUM = {
 
 export const FEE_PIPS_DENOMINATOR = 1_000_000;
 export const V4_DYNAMIC_FEE_FLAG = 0x800000;
+export const DYNAMIC_FEE_LABEL = "动态费率";
+export const PRICE_SPACING_LABEL = "价格档位间距";
+export const BIN_STEP_UNIT = "基点";
 export const HOUR_SECONDS = 3600;
 export const SECONDS_PER_YEAR = 365 * 24 * 3600;
 

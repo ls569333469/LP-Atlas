@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, expect, it, vi } from "vitest";
 import { queryOfficialJson } from "../src/adapters/official-index.ts";
 import {
+	MeteoraRequestBudget,
 	meteoraCandidateWindows,
 	parseMeteoraCurrentAccounts,
 	parseMeteoraHistory,
@@ -332,6 +333,60 @@ it("keeps the deadline active while the response body is stalled", async () => {
 		code: "index_down",
 	});
 	expect(aborted).toBe(true);
+});
+
+it("ends Meteora reads at 60 seconds even when fetch ignores abort", async () => {
+	vi.useFakeTimers();
+	try {
+		let deliver!: (response: Response) => void;
+		const fetchImpl = vi.fn<typeof fetch>(
+			() =>
+				new Promise((resolve) => {
+					deliver = resolve;
+				}),
+		);
+		const result = readMeteoraPool(poolId, { fetchImpl, budget: new MeteoraRequestBudget() });
+		const rejection = expect(result).rejects.toMatchObject({ code: "index_down" });
+		await vi.advanceTimersByTimeAsync(0);
+		const signal = fetchImpl.mock.calls[0]?.[1]?.signal;
+		expect(signal).toBeDefined();
+		await vi.advanceTimersByTimeAsync(59_999);
+		expect(signal?.aborted).toBe(false);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(signal?.aborted).toBe(true);
+		deliver(Response.json({ address: poolId }));
+		await vi.advanceTimersByTimeAsync(500);
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		await vi.advanceTimersByTimeAsync(60_000);
+		await rejection;
+		expect(fetchImpl.mock.calls[1]?.[1]?.signal?.aborted).toBe(true);
+		deliver(Response.json({ address: poolId }));
+	} finally {
+		vi.useRealTimers();
+	}
+});
+
+it("rejects a response observed past the deadline before the timer callback runs", async () => {
+	let elapsed = 0;
+	const clock = vi.spyOn(performance, "now").mockImplementation(() => elapsed);
+	const onRequestTiming = vi.fn();
+	try {
+		await expect(
+			queryOfficialJson(new URL("https://dlmm.datapi.meteora.ag/pools"), {
+				timeoutMs: 60_000,
+				fetchImpl: async () => {
+					elapsed = 60_001;
+					return Response.json({ pools: [] });
+				},
+				onRequestTiming,
+			}),
+		).rejects.toMatchObject({ code: "index_down" });
+		expect(onRequestTiming).toHaveBeenCalledWith(
+			expect.objectContaining({ timedOut: true, lateResponse: true }),
+		);
+	} finally {
+		clock.mockRestore();
+	}
 });
 
 it("uses the existing atomic checkpoint and tables, preserves nulls, and refuses a stale cumulative replacement", async () => {

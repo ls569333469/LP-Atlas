@@ -4,8 +4,21 @@ import {
 	boardNotices,
 	metricTooltip,
 	refreshForSelection,
+	revisionForSelection,
 	userError,
 } from "../src/web/src/data-notices.ts";
+
+it("changes a single-chain publication only when that chain publishes", () => {
+	const before = "elysium:1.1|robinhood:2.1|solana:3.1";
+	const other = "elysium:4.1|robinhood:2.1|solana:3.1";
+	const own = "elysium:4.1|robinhood:2.1|solana:5.1";
+	expect(revisionForSelection(before, ["solana"])).toBe("3.1");
+	expect(revisionForSelection(other, ["solana"])).toBe("3.1");
+	expect(revisionForSelection(own, ["solana"])).toBe("5.1");
+	expect(revisionForSelection("5.1", ["solana"])).toBe("5.1");
+	expect(revisionForSelection(other, [])).toBe(other);
+	expect(revisionForSelection(before, [])).not.toBe(other);
+});
 
 it("keeps formatted values, cutoff and incomplete status without rendering engineering reasons", () => {
 	const metric: MetricValue = {
