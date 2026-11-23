@@ -17,6 +17,7 @@ type ReadOptions = {
 	sortBy?: string;
 	budget?: MeteoraRequestBudget;
 	onInvalidPool?: (message: string) => void;
+	now?: () => Date;
 };
 
 export type { MeteoraPoolMetadata } from "../../../shared/meteora.ts";
@@ -99,8 +100,8 @@ async function queryMeteora(url: URL, options: ReadOptions): Promise<unknown> {
 export type MeteoraHistoryHour = {
 	startUnix: number;
 	volumeUsd: string;
-	reportedFeesUsd: string;
-	reportedProtocolFeesUsd: string;
+	reportedFeesUsd: string | null;
+	reportedProtocolFeesUsd: string | null;
 };
 export type MeteoraHistoryBatch = {
 	poolId: string;
@@ -350,6 +351,7 @@ export async function readMeteoraPoolPage(
 	if (options.filterBy) url.searchParams.set("filter_by", options.filterBy);
 	if (options.sortBy) url.searchParams.set("sort_by", options.sortBy);
 	const v = object(await queryMeteora(url, options));
+	const priceObservedAt = (options.now?.() ?? new Date()).getTime();
 	if (!Array.isArray(v.data) || v.data.length > pageSize || v.current_page !== page)
 		throw new Error("Invalid Meteora page");
 	const total = integer(v.total, 0);
@@ -360,7 +362,7 @@ export async function readMeteoraPoolPage(
 	const pools: MeteoraPoolMetadata[] = [];
 	for (const [index, entry] of v.data.entries()) {
 		try {
-			pools.push(poolMetadata(entry));
+			pools.push({ ...poolMetadata(entry), priceObservedAt });
 		} catch (error) {
 			if (!options.onInvalidPool) throw error;
 			options.onInvalidPool(`Meteora page ${page} item ${index + 1}: invalid required pool fields`);
@@ -458,8 +460,8 @@ export function parseMeteoraHistory(
 		const hour = {
 			startUnix: timestamp,
 			volumeUsd: amount(row.volume),
-			reportedFeesUsd: amount(row.fees),
-			reportedProtocolFeesUsd: amount(row.protocol_fees),
+			reportedFeesUsd: row.fees == null ? null : amount(row.fees),
+			reportedProtocolFeesUsd: row.protocol_fees == null ? null : amount(row.protocol_fees),
 		};
 		const previous = byHour.get(timestamp);
 		if (previous && JSON.stringify(previous) !== JSON.stringify(hour))

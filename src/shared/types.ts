@@ -7,6 +7,7 @@ import type {
 	RPC_SOURCE_CONFIGURED,
 	RPC_SOURCE_PUBLIC_TEMPORARY,
 } from "./constants.ts";
+import type { DlmmFilters } from "./dlmm-filters.ts";
 import type { FeeDataStatus } from "./fee-quality.ts";
 
 /** Stable English protocol id, e.g. uniswap_v3. The enabled set comes from the server catalog. */
@@ -42,6 +43,8 @@ export type MetricValue = {
 	complete: boolean;
 	/** Present for LP fee-derived metrics; coverage and fee quality are independent. */
 	feeStatus?: FeeDataStatus;
+	/** Official reported fees remain distinct from verified net LP income. */
+	feeBasis?: "reported_fees";
 	reason?: string;
 };
 
@@ -110,6 +113,7 @@ export type BoardMetricCondition = {
 };
 
 export type BoardFilters = {
+	dlmmFilters?: DlmmFilters;
 	hideLpRestrictions?: boolean;
 	minLpFees1hUsd?: string;
 	metricConditions?: BoardMetricCondition[];

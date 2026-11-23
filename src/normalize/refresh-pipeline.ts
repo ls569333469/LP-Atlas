@@ -33,6 +33,7 @@ import type { SourceObservation } from "../shared/source-contracts.ts";
 import type { UsdQuoteSource } from "../shared/usd-quotes.ts";
 import type { AppDatabase } from "../store/db.ts";
 import { getMeta, setMeta } from "../store/db.ts";
+import { saveMeteoraPriceObservations } from "../store/meteora-price-observations.ts";
 import { pruneHourlyCache } from "../store/prune.ts";
 import {
 	countPoolsByVenue,
@@ -1455,6 +1456,7 @@ type HourCheckpointPublication = {
 	officialAsOf?: string;
 	officialObservation?: SourceObservation;
 	officialDirectory?: { pools: MeteoraPoolMetadata[]; asOf: string };
+	onPriceSamplesSaved?: (durationMs: number) => void;
 };
 
 export function commitHourCheckpoint(
@@ -1530,6 +1532,20 @@ export async function commitHourCheckpoint(
 					});
 				await upsertMeteoraMetadata(tx, pool, publication.officialDirectory.asOf);
 			}
+			const started = performance.now();
+			await tx.execute("SAVEPOINT meteora_price_samples");
+			try {
+				await saveMeteoraPriceObservations(
+					tx,
+					publication.officialDirectory.pools,
+					publication.officialDirectory.asOf,
+				);
+			} catch {
+				await tx.execute("ROLLBACK TO meteora_price_samples");
+				publication.warnings.push("Meteora 池价样本未保存");
+			}
+			await tx.execute("RELEASE meteora_price_samples");
+			publication.onPriceSamplesSaved?.(performance.now() - started);
 		}
 		if (publication) {
 			for (const hour of hours) {

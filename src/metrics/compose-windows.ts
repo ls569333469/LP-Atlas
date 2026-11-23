@@ -1,6 +1,11 @@
 import Decimal from "decimal.js";
 import { combineFeeStatuses, feeDataUsable } from "../shared/fee-quality.ts";
-import { isNativeWindow, type StoredNativeWindow, type StoredWindow } from "../store/types.ts";
+import {
+	isNativeWindow,
+	type StoredNativeWindow,
+	type StoredOfficialWindow,
+	type StoredWindow,
+} from "../store/types.ts";
 import { hourStartsInWindow } from "./windows.ts";
 
 export type ComposeRange = {
@@ -85,10 +90,15 @@ export function composeFromHours(
 			)
 		)
 			return null;
-		const sumKnown = (field: "volumeUsd" | "lpFeesUsd") =>
-			present.some((hour) => hour[field] === null)
+		const official = present.filter((hour): hour is StoredOfficialWindow => !isNativeWindow(hour));
+		const sumKnown = (
+			field: "volumeUsd" | "lpFeesUsd" | "reportedFeesUsd" | "reportedProtocolFeesUsd",
+		) =>
+			official.some((hour) => hour[field] == null)
 				? null
-				: present.reduce((sum, hour) => sum.plus(hour[field] as string), new Decimal(0)).toString();
+				: official
+						.reduce((sum, hour) => sum.plus(hour[field] as string), new Decimal(0))
+						.toString();
 		const feeStatus = combineFeeStatuses(
 			present.map((hour) => hour.feeStatus ?? "legacy_unverified"),
 		);
@@ -126,6 +136,8 @@ export function composeFromHours(
 			lpFees1: null,
 			swapCount: null,
 			volumeUsd: sumKnown("volumeUsd"),
+			reportedFeesUsd: sumKnown("reportedFeesUsd"),
+			reportedProtocolFeesUsd: sumKnown("reportedProtocolFeesUsd"),
 			lpFeesUsd: feeDataUsable(feeStatus) ? sumKnown("lpFeesUsd") : null,
 			tvlUsd: present.at(-1)?.tvlUsd ?? null,
 			sqrtPriceStart: null,

@@ -61,13 +61,12 @@
 | [10-codex-handoff-robinhood-heavy-chain-optimize-2026-11-15.md](05-operations/10-codex-handoff-robinhood-heavy-chain-optimize-2026-11-15.md) | RPC 能力与价格读取核查记录；原优化执行内容已合并到 05-roadmap 的 Robinhood 唯一执行清单 |
 | [11-codex-handoff-five-minute-incremental-2026-11-15.md](05-operations/11-codex-handoff-five-minute-incremental-2026-11-15.md) | 2026-11-15 给 Codex 的交接：5 分钟续接采集，1 小时仍为记账单位，不另存 5 分钟快照 |
 | [12-multichain-incremental-performance-review-2026-11-15.md](05-operations/12-multichain-incremental-performance-review-2026-11-15.md) | 待Grok审核：多链续接性能调查、旧修复占锁、目录/查询与状态读取优化；未授权实施 |
-
 | [13-dollar-valuation-repair-review-2026-11-16.md](05-operations/13-dollar-valuation-repair-review-2026-11-16.md) | RedStone Push报价合同、历史金额重估及修复边界 |
 | [14-lp-participation-risk-notices-2026-11-16.md](05-operations/14-lp-participation-risk-notices-2026-11-16.md) | LP参与限制与风险提示最终方案：只对准入池提示，不屏蔽、不改变排序；代码未执行 |
-
 | [15-query-controls-and-funnel-design-2026-11-16.md](05-operations/15-query-controls-and-funnel-design-2026-11-16.md) | 三项准入、组合漏斗及排序统一设计；B中央弹窗已在现有主站实施，进度与验证范围见05唯一清单 |
-
 | [17-solana-venue-architecture-2026-11-20.md](05-operations/17-solana-venue-architecture-2026-11-20.md) | 2026-11-20 Solana 场所接入方案：先补非以太坊底座，第一批先 Meteora DLMM、再 Raydium CLMM；BSC 暂时不动；本轮只改标准，不启用生产扫描 |
+| [20-代币分组与FDV及价格档位间距-2026-11-23.md](05-operations/20-代币分组与FDV及价格档位间距-2026-11-23.md) | 三链代币分组、FDV、价格档位间距、筛选、右侧详情和外链 |
+| [21-Meteora-DLMM五分钟采集性能-2026-11-23.md](05-operations/21-Meteora-DLMM五分钟采集性能-2026-11-23.md) | P18/P19 性能专项：生产基线、分段测速、定向优化和验收 |
 
 ## 06 实战手册
 
@@ -77,7 +76,7 @@
 
 ## Solana基础更新
 
-- [19 · Meteora DLMM 指标补齐与问题复核](05-operations/19-Meteora-DLMM指标补齐与问题复核-2026-11-22.md)（2026-11-22，待Grok复核；手续费、APR、环比、价格、资金效率及生产加载问题；本轮仅文档）
+- [19 · Meteora DLMM 指标补齐与问题复核](05-operations/19-Meteora-DLMM指标补齐与问题复核-2026-11-22.md)（2026-11-22，已确认直接使用官方fees，撤销费用相加；六窗指标与生产加载问题；新口径代码待纠正）
 
 - [方案17 · 接入边界与S0审核](05-operations/17-solana-venue-architecture-2026-11-20.md)
 - [方案18 · 官方API主源接入与统一看板](05-operations/18-solana-codex-foundation-2026-11-20.md)（2026-11-22更新；原基础交接保留，当前合同见第0/12节）

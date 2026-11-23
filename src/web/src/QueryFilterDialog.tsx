@@ -3,11 +3,14 @@ import {
 	type BoardMetricCondition,
 	conditionToDisplay,
 	conditionToValue,
+	type DlmmFilters,
+	feeMetricLabel,
 	QUERY_METRICS,
 	type SortField,
 	type WindowId,
 } from "@lp-atlas/shared";
 import { type ReactElement, useEffect, useRef, useState } from "react";
+import { DlmmFilterFields } from "./DlmmFilterFields.tsx";
 
 type DraftCondition = {
 	field: SortField;
@@ -16,6 +19,7 @@ type DraftCondition = {
 	value: string;
 };
 export type QueryFilterDraft = {
+	dlmmFilters: DlmmFilters;
 	hideLpRestrictions: boolean;
 	minTvlUsd: string;
 	minWindowVolumeUsd: string;
@@ -23,6 +27,7 @@ export type QueryFilterDraft = {
 	conditions: DraftCondition[];
 };
 export function filterDraft(input: {
+	dlmmFilters?: DlmmFilters;
 	hideLpRestrictions?: boolean;
 	minTvlUsd: string;
 	minWindowVolumeUsd: string;
@@ -30,6 +35,7 @@ export function filterDraft(input: {
 	metricConditions: BoardMetricCondition[];
 }): QueryFilterDraft {
 	return {
+		dlmmFilters: input.dlmmFilters ?? {},
 		hideLpRestrictions: input.hideLpRestrictions ?? false,
 		minTvlUsd: input.minTvlUsd,
 		minWindowVolumeUsd: input.minWindowVolumeUsd,
@@ -58,6 +64,8 @@ export function draftConditions(draft: QueryFilterDraft): BoardMetricCondition[]
 
 export function QueryFilterDialog(props: {
 	open: boolean;
+	reportedFees?: boolean;
+	showDlmm?: boolean;
 	draft: QueryFilterDraft;
 	dirty: boolean;
 	onChange(draft: QueryFilterDraft): void;
@@ -66,9 +74,15 @@ export function QueryFilterDialog(props: {
 }): ReactElement {
 	const dialog = useRef<HTMLDialogElement>(null);
 	const [error, setError] = useState("");
+	const [tab, setTab] = useState<"general" | "dlmm">("general");
+	const showDlmmFields = props.showDlmm && tab === "dlmm";
 	useEffect(() => {
 		if (props.open) dialog.current?.showModal();
-		else dialog.current?.close();
+		else {
+			dialog.current?.close();
+			setTab("general");
+			setError("");
+		}
 	}, [props.open]);
 	return (
 		// biome-ignore lint/a11y/useKeyWithClickEvents: Native dialog handles Escape through onCancel; onClick only dismisses the backdrop.
@@ -109,12 +123,28 @@ export function QueryFilterDialog(props: {
 						draftConditions(props.draft);
 						setError("");
 						props.onApply();
-					} catch {
-						setError("请填写有效数值");
+					} catch (error) {
+						setError(error instanceof Error && error.message ? error.message : "请填写有效数值");
 					}
 				}}
 			>
-				<div className="query-dialog-body">
+				{props.showDlmm ? (
+					<fieldset className="dlmm-filter-tabs" aria-label="筛选类型">
+						<button type="button" aria-pressed={!showDlmmFields} onClick={() => setTab("general")}>
+							通用筛选
+						</button>
+						<button type="button" aria-pressed={showDlmmFields} onClick={() => setTab("dlmm")}>
+							DLMM 专属
+						</button>
+					</fieldset>
+				) : null}
+				{showDlmmFields ? (
+					<DlmmFilterFields
+						value={props.draft.dlmmFilters}
+						onChange={(dlmmFilters) => props.onChange({ ...props.draft, dlmmFilters })}
+					/>
+				) : null}
+				<div className="query-dialog-body" hidden={showDlmmFields}>
 					<section>
 						<h3>参与限制</h3>
 						<label className="query-risk-filter">
@@ -139,23 +169,25 @@ export function QueryFilterDialog(props: {
 									["minWindowVolumeUsd", "最低 1H 成交量"],
 									["minLpFees1hUsd", "最低 1H LP 手续费"],
 								] as const
-							).map(([key, label]) => (
-								<label key={key}>
-									{label}
-									<span className="query-number">
-										<input
-											aria-label={label}
-											type="number"
-											min="0"
-											step="any"
-											required
-											value={props.draft[key]}
-											onChange={(e) => props.onChange({ ...props.draft, [key]: e.target.value })}
-										/>
-										<span>美元</span>
-									</span>
-								</label>
-							))}
+							)
+								.filter(([key]) => !props.reportedFees || key !== "minLpFees1hUsd")
+								.map(([key, label]) => (
+									<label key={key}>
+										{label}
+										<span className="query-number">
+											<input
+												aria-label={label}
+												type="number"
+												min="0"
+												step="any"
+												required
+												value={props.draft[key]}
+												onChange={(e) => props.onChange({ ...props.draft, [key]: e.target.value })}
+											/>
+											<span>美元</span>
+										</span>
+									</label>
+								))}
 						</div>
 					</section>
 					<section>
@@ -170,7 +202,15 @@ export function QueryFilterDialog(props: {
 							<span />
 						</div>
 						{props.draft.conditions.map((condition, index) => {
-							const metric = QUERY_METRICS.find((m) => m.field === condition.field)!;
+							const definition = QUERY_METRICS.find((m) => m.field === condition.field)!;
+							const metric = {
+								...definition,
+								label: feeMetricLabel(
+									definition.field,
+									definition.label,
+									props.reportedFees ?? false,
+								),
+							};
 							const update = (patch: Partial<DraftCondition>) =>
 								props.onChange({
 									...props.draft,
@@ -255,6 +295,7 @@ export function QueryFilterDialog(props: {
 						onClick={() =>
 							props.onChange({
 								...props.draft,
+								dlmmFilters: props.showDlmm ? {} : props.draft.dlmmFilters,
 								hideLpRestrictions: false,
 								minTvlUsd: "1000",
 								minWindowVolumeUsd: "100",

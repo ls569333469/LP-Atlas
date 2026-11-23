@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { findChain, findProtocol } from "../shared/catalog.ts";
 import { BOARD_SORT_FIELDS, BOARD_WINDOWS } from "../shared/constants.ts";
+import { type DlmmFilters, parseDlmmFilters } from "../shared/dlmm-filters.ts";
 import type { BoardMetricCondition } from "../shared/types.ts";
 import { BoardPageError } from "./board-pages.ts";
 
@@ -43,15 +44,30 @@ export function parseBoardSelection(query: Query): {
 
 /** Validate the additional v2 filters at the HTTP boundary. Values use stored metric units. */
 export function parseBoardMetricFilters(query: Query): {
+	dlmmFilters?: DlmmFilters;
 	hideLpRestrictions?: boolean;
 	minLpFees1hUsd?: string;
 	metricConditions?: BoardMetricCondition[];
 } {
 	const result: {
+		dlmmFilters?: DlmmFilters;
 		hideLpRestrictions?: boolean;
 		minLpFees1hUsd?: string;
 		metricConditions?: BoardMetricCondition[];
 	} = {};
+	if (query.dlmmFilters !== undefined) {
+		try {
+			if (typeof query.dlmmFilters !== "string") throw new Error();
+			result.dlmmFilters = parseDlmmFilters(query.dlmmFilters);
+		} catch (error) {
+			throw new BoardPageError(
+				400,
+				error instanceof Error && error.message && !(error instanceof SyntaxError)
+					? error.message
+					: "DLMM 筛选条件格式无效",
+			);
+		}
+	}
 	if (query.hideLpRestrictions !== undefined) {
 		if (query.hideLpRestrictions !== "true" && query.hideLpRestrictions !== "false")
 			throw new BoardPageError(400, "参与限制筛选必须为 true 或 false");

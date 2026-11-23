@@ -79,6 +79,7 @@ export async function runMeteoraRefresh(input: {
 		const discoveryStarted = Date.now();
 		pools = await readMeteoraCandidates({
 			...options,
+			now: input.config.now,
 			onInvalidPool: (message) => gaps.push(message),
 		});
 		timings.discoveryMs = Date.now() - discoveryStarted;
@@ -143,7 +144,14 @@ export async function runMeteoraRefresh(input: {
 						finality: "unverified",
 						feeAttribution: "unverified",
 					},
-					...(directory && start === H ? { officialDirectory: { pools, asOf } } : {}),
+					...(directory && start === H
+						? {
+								officialDirectory: { pools, asOf },
+								onPriceSamplesSaved: (durationMs: number) => {
+									timings.priceSamplesMs = Math.round(durationMs * 10) / 10;
+								},
+							}
+						: {}),
 				});
 				published = true;
 			}

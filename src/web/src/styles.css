@@ -1420,6 +1420,101 @@ summary {
 	font-size: 11px;
 	padding: 3px 0;
 }
+.dlmm-filter-tabs {
+	display: flex;
+	flex: none;
+	gap: 20px;
+	margin: 0;
+	padding-inline: 22px;
+	border: 0;
+	border-bottom: 1px solid var(--line);
+}
+.dlmm-filter-tabs button {
+	padding: 10px 3px 8px;
+	border-bottom: 2px solid transparent;
+	border-radius: 0;
+}
+.dlmm-filter-tabs button[aria-pressed="true"] {
+	border-bottom-color: var(--lime);
+	color: var(--lime);
+}
+.query-gates.dlmm-filter-grid {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px 16px;
+}
+.dlmm-filter-grid > label {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+}
+.dlmm-filter-grid input,
+.dlmm-filter-grid select {
+	width: 100%;
+	min-width: 0;
+}
+.dlmm-filter-range {
+	min-width: 0;
+	border: 0;
+	margin: 0;
+	padding: 0;
+}
+.dlmm-filter-range legend {
+	padding: 0;
+	font-size: 12px;
+}
+.dlmm-filter-range > div {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+	margin-top: 6px;
+}
+.dlmm-filter-range button[aria-pressed="true"] {
+	border-color: var(--lime);
+	color: var(--lime);
+}
+.dlmm-filter-more {
+	margin-top: 12px;
+	padding-top: 9px;
+	border-top: 1px solid var(--line);
+}
+.dlmm-filter-more summary {
+	cursor: pointer;
+}
+.dlmm-filter-more > div {
+	margin-top: 9px;
+}
+.dlmm-filter-hint {
+	position: relative;
+	width: fit-content;
+	cursor: help;
+	text-decoration: underline dotted;
+	text-underline-offset: 3px;
+}
+.dlmm-filter-hint [role="tooltip"] {
+	display: none;
+	position: absolute;
+	z-index: 1;
+	inset: calc(100% + 4px) auto auto 0;
+	width: max-content;
+	max-width: min(230px, 36vw);
+	padding: 7px 9px;
+	border: 1px solid #596a4a;
+	border-radius: 5px;
+	background: #222d1d;
+	color: #e9eee3;
+	font-size: 12px;
+	white-space: normal;
+	pointer-events: none;
+}
+.dlmm-filter-hint:hover [role="tooltip"],
+.dlmm-filter-hint:focus [role="tooltip"] {
+	display: block;
+}
+@media (max-width: 500px) {
+	.query-gates.dlmm-filter-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
 .query-dialog-actions {
 	display: flex;
 	align-items: center;

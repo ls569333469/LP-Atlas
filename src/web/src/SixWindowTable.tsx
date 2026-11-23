@@ -4,6 +4,7 @@ import {
 	type BoardRow,
 	type BoardSuccessResponse,
 	type BoardWindowMetrics,
+	feeMetricLabel,
 	poolIdentity,
 	protocolLabel,
 	RPC_SOURCE_PUBLIC_TEMPORARY,
@@ -181,7 +182,11 @@ export const SixWindowTable = memo(function SixWindowTable(props: {
 												key={metric.key}
 												className={board.sort.field === metric.sort ? "sort-label-highlight" : ""}
 											>
-												{metric.label}
+												{feeMetricLabel(
+													metric.key,
+													metric.label,
+													row.feesUsd.feeBasis === "reported_fees",
+												)}
 											</div>
 										))}
 									</div>
@@ -286,7 +291,13 @@ export function PoolMetrics(props: {
 						<tbody>
 							{WINDOW_METRICS.map((metric) => (
 								<tr key={metric.key}>
-									<th>{metric.label}</th>
+									<th>
+										{feeMetricLabel(
+											metric.key,
+											metric.label,
+											row.feesUsd.feeBasis === "reported_fees",
+										)}
+									</th>
 									{BOARD_WINDOWS.map((window) => {
 										const value = row.windows?.[window.id]?.[metric.key];
 										return (
@@ -370,7 +381,10 @@ function MeteoraDetails({
 	return (
 		<details className="detail-source">
 			<summary>DLMM 资料</summary>
-			<p>官方 API · 更新于 {formatTime(details.asOf)} · LP手续费与收益年化尚未核实</p>
+			<p>
+				官方 API · 更新于 {formatTime(details.asOf)} · 费用取官方
+				fees，协议费用单独保留；年化按对应小时窗口计算
+			</p>
 			<p>
 				池名称：{p.name ?? "—"} · Bin Step：{p.binStep ?? "—"} · 池类型：{p.pairType ?? "—"}
 			</p>
@@ -387,6 +401,11 @@ function MeteoraDetails({
 						? "OnlyY"
 						: (p.collectFeeMode ?? "—")}{" "}
 				· 当前池价格 {p.currentPrice ?? "—"}
+				{p.currentPrice === null ? "" : ` ${p.tokenY.symbol}/${p.tokenX.symbol}`}
+			</p>
+			<p>
+				价格涨跌按正常采集的池价估算，方向为每 1 {p.tokenX.symbol} 对应的 {p.tokenY.symbol}{" "}
+				数量。两端观测不足时留空。
 			</p>
 			<p>
 				当前储备：{p.tokenX.symbol} {p.tokenXAmount ?? "—"} / {p.tokenY.symbol}{" "}

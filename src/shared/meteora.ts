@@ -30,6 +30,8 @@ export type MeteoraPoolMetadata = {
 	dynamicFeePercent: string | null;
 	currentTvlUsd: string;
 	currentPrice: string | null;
+	/** Local receipt time for the directory page, in Unix milliseconds. */
+	priceObservedAt?: number;
 	createdAtUnix: number | null;
 	hasFarm: boolean | null;
 	farmApr: string | null;
@@ -51,3 +53,12 @@ export type MeteoraPoolMetadata = {
 	};
 	accountVerification: "unverified";
 };
+
+/** Labels follow the selected fee basis; EVM LP income keeps its existing names. */
+export function feeMetricLabel(field: string, fallback: string, reported: boolean): string {
+	if (!reported) return fallback;
+	if (field === "fees" || field === "feesUsd") return "费用";
+	if (field === "feesApr") return "费用年化";
+	if (field === "changeVsPrevWindow") return "费用环比";
+	return fallback;
+}

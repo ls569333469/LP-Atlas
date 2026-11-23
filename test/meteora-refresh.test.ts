@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createClient } from "@libsql/client";
+import Decimal from "decimal.js";
 import { afterEach, expect, it, vi } from "vitest";
 import { resolveRpcConfig } from "../src/adapters/rpc.ts";
 import { readBoard } from "../src/normalize/board.ts";
@@ -25,6 +26,7 @@ async function database() {
 }
 function source(options: { missingHours?: number[]; createdAt?: number | null } = {}) {
 	let volume = 200;
+	let price = pool.current_price;
 	const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
 		const url = new URL(String(input));
 		if (url.pathname === "/pools")
@@ -37,6 +39,7 @@ function source(options: { missingHours?: number[]; createdAt?: number | null } 
 					data: [
 						{
 							...pool,
+							current_price: price,
 							...(options.createdAt !== undefined ? { created_at: options.createdAt } : {}),
 						},
 					],
@@ -64,6 +67,9 @@ function source(options: { missingHours?: number[]; createdAt?: number | null } 
 		setVolume: (next: number) => {
 			volume = next;
 		},
+		setPrice: (next: number) => {
+			price = next;
+		},
 	};
 }
 const now = () => new Date((H + 1800) * 1000);
@@ -75,7 +81,69 @@ const read = (db: Awaited<ReturnType<typeof openDatabase>>, query = {}) =>
 		query: { includeWindows: "all", ...query },
 	});
 
-it("publishes official candidates through the existing hourly tables, with six windows and no invented LP yield", async () => {
+it("uses only observations at or before each window target and leaves unavailable windows empty", async () => {
+	const db = createClient({ url: ":memory:" });
+	try {
+		await migrate(db);
+		const api = source();
+		const refreshAt = (seconds: number, price: number) => {
+			api.setPrice(price);
+			return runMeteoraRefresh({
+				db,
+				config: {
+					fetchImpl: api.fetchImpl,
+					now: () => new Date((H + seconds) * 1000),
+					historyPoolBudget: 0,
+				},
+			});
+		};
+		await refreshAt(-3600 - 301, 900);
+		await refreshAt(-180, 100);
+		await refreshAt(30, 200);
+		await refreshAt(300, 125);
+		const board = await read(db);
+		if (!board.ok) throw new Error(board.error);
+		expect(board.rows[0]?.priceChange).toMatchObject({
+			value: "0.25",
+			asOf: new Date((H + 300) * 1000).toISOString(),
+			reason: "meteora_sampled_pool_price",
+		});
+		expect(board.rows[0]?.windows?.["2h"].priceChange.value).toBeNull();
+		expect(board.rows[0]?.feesUsd.value).toBe("7");
+		expect(api.fetchImpl).toHaveBeenCalledTimes(8);
+		await refreshAt(600, 100);
+		const flat = await read(db);
+		expect(flat.ok && flat.rows[0]?.priceChange.value).toBe("0");
+		await db.execute({
+			sql: "UPDATE meteora_price_observations SET token_x = token_y WHERE observed_at_ms = ?",
+			args: [(H - 180) * 1000],
+		});
+		const mismatch = await read(db);
+		expect(mismatch.ok && mismatch.rows[0]?.priceChange.value).toBeNull();
+	} finally {
+		db.close();
+	}
+});
+
+it("publishes official metrics when optional price storage or reading fails", async () => {
+	const db = createClient({ url: ":memory:" });
+	try {
+		await migrate(db);
+		await db.execute("DROP TABLE meteora_price_observations");
+		const api = source();
+		const result = await runMeteoraRefresh({ db, config: { fetchImpl: api.fetchImpl, now } });
+		expect(result.warnings).toContain("Meteora 池价样本未保存");
+		const board = await read(db);
+		if (!board.ok) throw new Error(board.error);
+		expect(board.rows[0]?.priceChange.value).toBeNull();
+		expect(board.rows[0]?.feesUsd.value).toBe("7");
+		expect(board.rows[0]?.volumeUsd.value).toBe("200");
+	} finally {
+		db.close();
+	}
+});
+
+it("publishes official candidates through the existing hourly tables, with six reported-fee windows while preserving net LP storage", async () => {
 	const db = await database();
 	try {
 		const api = source();
@@ -91,8 +159,8 @@ it("publishes official candidates through the existing hourly tables, with six w
 			chain: "solana",
 			poolId: pool.address,
 			feeTierPips: null,
-			feesUsd: { value: null },
-			feesApr: { value: null },
+			feesUsd: { value: "7", feeBasis: "reported_fees" },
+			feesApr: { feeBasis: "reported_fees" },
 		});
 		for (const [id, hours] of [
 			["1h", 1],
@@ -128,6 +196,80 @@ it("publishes official candidates through the existing hourly tables, with six w
 			metricConditions: [{ field: "feesApr", operator: ">", value: "1", window: "1h" }],
 		});
 		expect(hidden.ok && hidden.rows.length).toBe(0);
+	} finally {
+		db.close();
+	}
+});
+
+it("uses official fees only and elapsed-time annualization without changing stored LP fees", async () => {
+	const db = await database();
+	try {
+		const api = source();
+		await runMeteoraRefresh({ db, config: { fetchImpl: api.fetchImpl, now } });
+		const board = await read(db);
+		if (!board.ok) throw new Error(board.error);
+		const row = board.rows[0]!;
+		for (const [id, count] of [
+			["1h", 1],
+			["2h", 2],
+			["4h", 4],
+			["6h", 6],
+			["24h", 24],
+			["3d", 72],
+		] as const) {
+			const metrics = row.windows![id];
+			expect(metrics.feesUsd.value).toBe(String(count * 7));
+			expect(metrics.feesApr.feeBasis).toBe("reported_fees");
+			expect(new Decimal(metrics.feesApr.value!).toNumber()).toBeCloseTo(
+				(((count * 7) / Number(row.tvlUsd.value)) * 31536000) / (count * 3600 - 1800),
+				10,
+			);
+			expect(new Decimal(metrics.capitalEfficiency.value!).toNumber()).toBeCloseTo(
+				(count * 200) / Number(row.tvlUsd.value),
+				10,
+			);
+			expect(metrics.changeVsPrevWindow.value).toBe(id === "3d" ? null : "0");
+			expect(metrics.priceChange.value).toBeNull();
+		}
+		const match = await read(db, {
+			metricConditions: [{ field: "fees", operator: ">", value: "6", window: "1h" }],
+		});
+		expect(match.ok && match.rows.length).toBe(1);
+		await db.execute({
+			sql: "UPDATE window_aggregates SET reported_protocol_fees_usd=NULL WHERE window_start=?",
+			args: [H],
+		});
+		const missing = await read(db);
+		if (!missing.ok) throw new Error(missing.error);
+		expect(missing.rows[0]!.feesUsd.value).toBe("7");
+		expect(missing.rows[0]!.feesApr.value).toBe(row.feesApr.value);
+		await db.execute({
+			sql: "UPDATE window_aggregates SET reported_fees_usd=NULL WHERE window_start=?",
+			args: [H],
+		});
+		const noFees = await read(db);
+		if (!noFees.ok) throw new Error(noFees.error);
+		expect(noFees.rows[0]!.feesUsd.value).toBeNull();
+		expect(noFees.rows[0]!.feesApr.value).toBeNull();
+		expect(missing.rows[0]!.volumeUsd.value).toBe("200");
+		await db.execute({
+			sql: "UPDATE window_aggregates SET reported_fees_usd='0', reported_protocol_fees_usd='0' WHERE window_start IN (?,?)",
+			args: [H, H - 3600],
+		});
+		const zero = await read(db);
+		if (!zero.ok) throw new Error(zero.error);
+		expect(zero.rows[0]!.feesUsd.value).toBe("0");
+		expect(zero.rows[0]!.feesApr.value).toBe("0");
+		expect(zero.rows[0]!.changeVsPrevWindow.value).toBeNull();
+		expect(zero.rows[0]!.changeVsPrevWindow.reason).toBe("previous_zero");
+		await db.execute({
+			sql: "UPDATE window_aggregates SET source_observation=json_set(source_observation,'$.schemaVersion','other-version') WHERE window_start=?",
+			args: [H - 3600],
+		});
+		const mixed = await read(db);
+		if (!mixed.ok) throw new Error(mixed.error);
+		expect(mixed.rows[0]!.windows!["2h"].feesUsd.value).toBeNull();
+		expect((await listWindowsInRange(db, H, H + 3600, "solana"))[0]!.lpFeesUsd).toBeNull();
 	} finally {
 		db.close();
 	}
@@ -273,7 +415,38 @@ it("uses the existing HTTP refresh, health, pagination and pool-detail query wit
 		).json();
 		expect(board.rows).toHaveLength(1);
 		expect(board.pagination.total).toBe(1);
+		expect(board.appliedFilters.dlmmFilters).toEqual({});
 		expect(board.rows[0].windows["3d"].volumeUsd.value).toBe("14400");
+		const dlmm = (filters: Record<string, string>) =>
+			`&dlmmFilters=${encodeURIComponent(JSON.stringify(filters))}`;
+		const bin = String(pool.pool_config.bin_step);
+		const matching = dlmm({ binStepMin: bin, binStepMax: bin, farm: "false" });
+		const all = (
+			await app.inject(`/api/v2/board?includeWindows=all&pageSize=50${matching}`)
+		).json();
+		const sol = (
+			await app.inject(`/api/v2/board?chain=solana&includeWindows=all&pageSize=50${matching}`)
+		).json();
+		expect(sol.pagination.total).toBe(1);
+		expect(sol.appliedFilters.dlmmFilters).toEqual({
+			binStepMin: bin,
+			binStepMax: bin,
+			farm: "false",
+		});
+		expect(all.rows.filter((row: { chain: string }) => row.chain === "solana")).toEqual(sol.rows);
+		const filtered = (
+			await app.inject(
+				`/api/v2/board?chain=solana&pageSize=50${dlmm({ binStepMin: String(Number(bin) + 1) })}`,
+			)
+		).json();
+		expect(filtered.pagination.total).toBe(0);
+		expect(
+			(await app.inject(`/api/v2/board?chain=solana${dlmm({ farmAprMin: "0" })}`)).statusCode,
+		).toBe(400);
+		expect(
+			(await app.inject(`/api/v2/board?chain=solana${dlmm({ binStepMin: "5", binStepMax: "4" })}`))
+				.statusCode,
+		).toBe(400);
 		const key = JSON.stringify(["solana", "meteora_dlmm", pool.address]);
 		const detail = (
 			await app.inject(

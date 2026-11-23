@@ -14,6 +14,7 @@ import {
 	venueAdapter,
 } from "../src/adapters/venues/solana/meteora-dlmm.ts";
 import { composeFromHours } from "../src/metrics/compose-windows.ts";
+import { matchesDlmmFilters } from "../src/metrics/dlmm-filters.ts";
 import { commitHourCheckpoint } from "../src/normalize/refresh-pipeline.ts";
 import { solanaPublicKey } from "../src/shared/solana-identifiers.ts";
 import { sourceObservation } from "../src/shared/source-contracts.ts";
@@ -43,6 +44,28 @@ const fetchJson = (value: unknown) =>
 const dirs: string[] = [];
 afterEach(async () => {
 	await removeTempDirectories(dirs);
+});
+
+it("applies DLMM conditions to one token at a time and preserves zero, false and missing values", async () => {
+	const pool = await readMeteoraPool(poolId, { fetchImpl: fetchJson(fixture("pool-0")) });
+	pool.tokenX.marketCapUsd = "500";
+	pool.tokenX.holders = 0;
+	pool.tokenY.marketCapUsd = null;
+	pool.tokenY.holders = 1000;
+	pool.hasFarm = false;
+	pool.launchpad = null;
+	expect(matchesDlmmFilters(pool, { side: "both" })).toBe(true);
+	expect(matchesDlmmFilters(pool, { marketCapMin: "500", holdersMin: "1000" })).toBe(false);
+	expect(
+		matchesDlmmFilters(pool, { side: "x", marketCapMax: "500", holdersMax: "0", farm: "false" }),
+	).toBe(true);
+	expect(matchesDlmmFilters(pool, { side: "both", marketCapMin: "0" })).toBe(false);
+	expect(matchesDlmmFilters(pool, { launchpad: "Meteora" })).toBe(false);
+	expect(matchesDlmmFilters(pool, { rewardMint: "11111111111111111111111111111111" })).toBe(false);
+	pool.reportedStatistics.protocolFees = { "1h": "0", "4h": "10" };
+	expect(matchesDlmmFilters(pool, { protocolFeesMax: "0" })).toBe(true);
+	expect(matchesDlmmFilters(pool, { protocolFeesMax: "0", officialWindow: "4h" })).toBe(false);
+	expect(matchesDlmmFilters(pool, { protocolFeesMin: "0", officialWindow: "12h" })).toBe(false);
 });
 
 it("matches independently executed official SDK address vectors, including a real off-curve PDA", () => {
@@ -411,4 +434,21 @@ it("validates request timing without treating it as source cutoff", () => {
 	expect(() =>
 		sourceObservation({ ...observation, requestStartedAt: "2026-11-21T12:00:01Z" }),
 	).toThrow("request start");
+});
+
+it("keeps known volume and fees when protocol fees are missing, without replacing unknown fees by zero", () => {
+	const raw = exact();
+	delete raw.data[0].protocol_fees;
+	const known = parseMeteoraHistory(raw, poolId, start, end, observedAt).hours[0]!;
+	expect(known.volumeUsd).toBe(String(raw.data[0].volume));
+	expect(known.reportedFeesUsd).toBe(String(raw.data[0].fees));
+	expect(known.reportedProtocolFeesUsd).toBeNull();
+	delete raw.data[0].fees;
+	const missing = parseMeteoraHistory(raw, poolId, start, end, observedAt).hours[0]!;
+	expect(missing.volumeUsd).toBe(known.volumeUsd);
+	expect(missing.reportedFeesUsd).toBeNull();
+	raw.data[0].fees = 0;
+	expect(parseMeteoraHistory(raw, poolId, start, end, observedAt).hours[0]!.reportedFeesUsd).toBe(
+		"0",
+	);
 });

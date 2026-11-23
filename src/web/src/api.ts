@@ -51,6 +51,8 @@ export async function fetchBoard(input?: {
 	if (filters?.minLpFees1hUsd !== undefined) params.set("minLpFees1hUsd", filters.minLpFees1hUsd);
 	if (filters?.metricConditions?.length)
 		params.set("metricConditions", JSON.stringify(filters.metricConditions));
+	if (filters?.dlmmFilters && Object.keys(filters.dlmmFilters).length)
+		params.set("dlmmFilters", JSON.stringify(filters.dlmmFilters));
 	for (const chain of filters?.chains ?? []) params.append("chains", chain);
 	for (const protocol of filters?.protocols ?? []) params.append("protocols", protocol);
 	if (input?.includeWindows) params.set("includeWindows", input.includeWindows);

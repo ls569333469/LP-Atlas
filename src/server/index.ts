@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { config as loadDotenv } from "dotenv";
 import { createRedstoneQuotes } from "../adapters/redstone-quotes.ts";
 import { openDatabase } from "../store/db.ts";
@@ -31,6 +32,24 @@ const app = buildApp({
 	solanaDlmm: env.solanaDlmmEnabled ? {} : undefined,
 	autoScan: { ...env.autoScan, databasePath: env.databasePath },
 });
+
+const webRoot = fileURLToPath(new URL("../web/", import.meta.url));
+const indexFile = path.join(webRoot, "index.html");
+if (fs.existsSync(path.join(webRoot, "assets")) && fs.existsSync(indexFile)) {
+	app.get("/", async (_, reply) =>
+		reply.type("text/html; charset=utf-8").send(fs.createReadStream(indexFile)),
+	);
+	app.get<{ Params: { name: string } }>("/assets/:name", async (request, reply) => {
+		const { name } = request.params;
+		if (!/^[a-zA-Z0-9_-]+\.(?:js|css)$/.test(name)) return reply.callNotFound();
+		const file = path.join(webRoot, "assets", name);
+		if (!fs.existsSync(file)) return reply.callNotFound();
+		return reply
+			.type(name.endsWith(".js") ? "text/javascript" : "text/css")
+			.header("cache-control", "public, max-age=31536000, immutable")
+			.send(fs.createReadStream(file));
+	});
+}
 
 const shutdown = async () => {
 	await app.close();

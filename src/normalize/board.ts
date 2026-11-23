@@ -24,6 +24,7 @@ import {
 } from "../metrics/windows.ts";
 import { chainByEvmId, enabledVenues, productCatalog } from "../shared/catalog.ts";
 import { BOARD_COLUMNS, BOARD_WINDOWS, METRIC_SOURCE_SELF_BUILT } from "../shared/constants.ts";
+import type { DlmmFilters } from "../shared/dlmm-filters.ts";
 import { combineFeeStatuses, FEE_DATA_REASONS, feeDataUsable } from "../shared/fee-quality.ts";
 import {
 	formatFeeTierLabel,
@@ -120,6 +121,7 @@ export type BoardReadInput = {
 	chainRpcSources: ChainRpcSource[];
 	legacyWindowFilter?: boolean;
 	query: {
+		dlmmFilters?: DlmmFilters;
 		hideLpRestrictions?: boolean;
 		minLpFees1hUsd?: string;
 		metricConditions?: BoardMetricCondition[];
@@ -216,6 +218,8 @@ async function readBoardSnapshot(
 		window: input.query.window,
 	});
 	const runtime = { solanaDlmm: input.chainRpcSources.some((source) => source.chain === "solana") };
+	if (runtime.solanaDlmm && !input.legacyWindowFilter)
+		filters.dlmmFilters = input.query.dlmmFilters ?? {};
 	const catalog = productCatalog(runtime);
 	const venues = enabledVenues(runtime);
 	const lastSuccess = await latestSuccessfulRefresh(input.db, input.readChain);

@@ -6,11 +6,15 @@ import {
 	type BoardRow,
 	type BoardSuccessResponse,
 	conditionToDisplay,
+	countDlmmFilters,
 	DEFAULT_BOARD_FILTERS,
 	DEFAULT_BOARD_SORT,
+	type DlmmFilters,
 	enabledVenues as defaultEnabledVenues,
+	feeMetricLabel,
 	feePercentToPips,
 	feePipsToInput,
+	parseDlmmFilters,
 	poolIdentity,
 	protocolLabel,
 	QUERY_METRICS,
@@ -36,6 +40,7 @@ type LoadState =
 	| { status: "error"; message: string; board: BoardSuccessResponse | null };
 
 type AppliedFilters = {
+	dlmmFilters: DlmmFilters;
 	hideLpRestrictions: boolean;
 	minLpFees1hUsd: string;
 	metricConditions: BoardMetricCondition[];
@@ -48,6 +53,7 @@ type AppliedFilters = {
 };
 
 const INITIAL_FILTERS: AppliedFilters = {
+	dlmmFilters: {},
 	hideLpRestrictions: false,
 	minLpFees1hUsd: DEFAULT_BOARD_FILTERS.minLpFees1hUsd,
 	metricConditions: [],
@@ -180,6 +186,12 @@ function windowCoverageNote(board: BoardSuccessResponse | null, windowId: Window
 
 function readLocation() {
 	const params = new URLSearchParams(location.search);
+	let dlmmFilters: DlmmFilters = {};
+	try {
+		dlmmFilters = parseDlmmFilters(params.get("dlmmFilters") ?? "{}");
+	} catch {
+		// Ignore invalid filters in shared URLs.
+	}
 	let metricConditions: BoardMetricCondition[] = [];
 	try {
 		const parsed = JSON.parse(params.get("metricConditions") ?? "[]");
@@ -207,6 +219,7 @@ function readLocation() {
 	}
 	const filters: AppliedFilters = {
 		...INITIAL_FILTERS,
+		dlmmFilters,
 		hideLpRestrictions:
 			(params.get("hideLpRestrictions") ?? params.get("hideConfirmedLpRestrictions")) === "true",
 		minLpFees1hUsd: params.get("minLpFees1hUsd") ?? INITIAL_FILTERS.minLpFees1hUsd,
@@ -277,6 +290,7 @@ export function BoardPage(): ReactElement {
 		(filters: AppliedFilters, window: WindowId, field: SortField, direction: SortDirection) => {
 			return {
 				filters: {
+					dlmmFilters: filters.dlmmFilters,
 					hideLpRestrictions: filters.hideLpRestrictions,
 					minTvlUsd: filters.minTvlUsd,
 					minLpFees1hUsd: filters.minLpFees1hUsd,
@@ -428,10 +442,12 @@ export function BoardPage(): ReactElement {
 
 	function onApply(): void {
 		const metricConditions = draftConditions(filterSettings);
-		setFilterSettings(filterDraft({ ...filterSettings, metricConditions }));
+		const dlmmFilters = parseDlmmFilters(JSON.stringify(filterSettings.dlmmFilters));
+		setFilterSettings(filterDraft({ ...filterSettings, metricConditions, dlmmFilters }));
 		setPage(1);
 		setAppliedFilters((current) => ({
 			...current,
+			dlmmFilters,
 			minTvlUsd: filterSettings.minTvlUsd,
 			minWindowVolumeUsd: filterSettings.minWindowVolumeUsd,
 			minLpFees1hUsd: filterSettings.minLpFees1hUsd,
@@ -541,6 +557,9 @@ export function BoardPage(): ReactElement {
 		board !== null &&
 		JSON.stringify(loadedChains) !== JSON.stringify(appliedFilters.chains);
 	const showPublicRpcWarning = board ? isPublicTemporary(board) : false;
+	const showDlmmFilters =
+		board?.appliedFilters.dlmmFilters !== undefined &&
+		(chains.length === 0 || chains.includes("solana"));
 	const catalog = board?.catalog;
 
 	useEffect(() => {
@@ -552,6 +571,8 @@ export function BoardPage(): ReactElement {
 		params.set("minLpFees1hUsd", appliedFilters.minLpFees1hUsd);
 		if (appliedFilters.metricConditions.length)
 			params.set("metricConditions", JSON.stringify(appliedFilters.metricConditions));
+		if (Object.keys(appliedFilters.dlmmFilters).length)
+			params.set("dlmmFilters", JSON.stringify(appliedFilters.dlmmFilters));
 		if (appliedFilters.hideLpRestrictions) params.set("hideLpRestrictions", "true");
 		if (appliedFilters.feeTierPips) params.set("feeTierPips", appliedFilters.feeTierPips);
 		if (appliedFilters.search) params.set("search", appliedFilters.search);
@@ -827,7 +848,11 @@ export function BoardPage(): ReactElement {
 									>
 										{WINDOW_METRICS.map((metric) => (
 											<option key={metric.sort} value={metric.sort}>
-												{metric.label}
+												{feeMetricLabel(
+													metric.sort,
+													metric.label,
+													chains.length === 1 && chains[0] === "solana",
+												)}
 											</option>
 										))}
 										<option value="tvl">TVL</option>
@@ -876,6 +901,7 @@ export function BoardPage(): ReactElement {
 								▽ 筛选条件{" "}
 								<b>
 									{appliedFilters.metricConditions.length +
+										(showDlmmFilters ? countDlmmFilters(appliedFilters.dlmmFilters) : 0) +
 										Number(appliedFilters.hideLpRestrictions)}
 								</b>
 								{filtersDirty ? (
@@ -892,11 +918,16 @@ export function BoardPage(): ReactElement {
 									return (
 										<span key={c.field}>
 											{c.window ? BOARD_WINDOWS.find((w) => w.id === c.window)?.label : ""}{" "}
-											{metric.label} {c.operator} {conditionToDisplay(c)}
+											{feeMetricLabel(
+												c.field,
+												metric.label,
+												chains.length === 1 && chains[0] === "solana",
+											)}{" "}
+											{c.operator} {conditionToDisplay(c)}
 											{metric.unit}
 											<button
 												type="button"
-												aria-label={`移除${metric.label}条件`}
+												aria-label={`移除${feeMetricLabel(c.field, metric.label, chains.length === 1 && chains[0] === "solana")}条件`}
 												onClick={() => {
 													const next = {
 														...appliedFilters,
@@ -917,6 +948,8 @@ export function BoardPage(): ReactElement {
 							</div>
 						) : null}
 						<QueryFilterDialog
+							showDlmm={showDlmmFilters}
+							reportedFees={chains.length === 1 && chains[0] === "solana"}
 							open={settingsOpen}
 							draft={filterSettings}
 							dirty={filtersDirty}

@@ -3,6 +3,7 @@ export * from "./chain.ts";
 export * from "./chain-ref.ts";
 export * from "./constants.ts";
 export * from "./deployments.ts";
+export * from "./dlmm-filters.ts";
 export * from "./format.ts";
 export * from "./meteora.ts";
 export * from "./pool-identity.ts";
